@@ -24,16 +24,18 @@ namespace tusdotnet
         {
             context.Configuration.Validate();
 
-            var intentHandler = IntentAnalyzer.DetermineIntent(context);
+            var intentType = IntentAnalyzer.DetermineIntent(context);
 
-            if (intentHandler == IntentHandler.NotApplicable)
+            if (intentType == IntentType.NotApplicable)
             {
                 return ResultType.ContinueExecution;
             }
 
+            var intentHandler = IntentAnalyzer.GetHandler(intentType, context);
+
             var onAuhorizeResult = await EventHelper.Validate<AuthorizeContext>(context, ctx =>
             {
-                ctx.Intent = intentHandler.Intent;
+                ctx.Intent = intentType;
                 ctx.FileConcatenation = GetFileConcatenationFromIntentHandler(intentHandler);
             });
 

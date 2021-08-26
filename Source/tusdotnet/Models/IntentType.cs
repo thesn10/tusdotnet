@@ -6,6 +6,11 @@
     public enum IntentType
     {
         /// <summary>
+        /// Intent is not applicable.
+        /// </summary>
+        NotApplicable,
+
+        /// <summary>
         /// Intent is to create a new file.
         /// </summary>
         CreateFile,

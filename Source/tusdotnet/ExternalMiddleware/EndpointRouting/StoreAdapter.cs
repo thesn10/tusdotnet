@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using tusdotnet.Interfaces;
+using tusdotnet.Models.Concatenation;
+using tusdotnet.Constants;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -16,6 +19,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         private readonly ITusCreationStore _creationStore;
         private readonly ITusExpirationStore _expirationStore;
         private readonly ITusChecksumStore _checksumStore;
+        private readonly ITusConcatenationStore _concatStore;
+        private readonly ITusCreationDeferLengthStore _creationDeferLengthStore;
+        private readonly ITusReadableStore _readableStore;
+        private readonly ITusTerminationStore _terminationStore;
 
         public StoreExtensions Extensions { get; }
 
@@ -42,11 +49,75 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 _checksumStore = checksumStore;
                 Extensions.Checksum = true;
             }
+
+            if (store is ITusConcatenationStore concatStore)
+            {
+                _concatStore = concatStore;
+                Extensions.Concatenation = true;
+            }
+
+            if (store is ITusCreationDeferLengthStore creationDeferLengthStore)
+            {
+                _creationDeferLengthStore = creationDeferLengthStore;
+                Extensions.CreationDeferLength = true;
+            }
+
+            if (store is ITusTerminationStore terminationStore)
+            {
+                _terminationStore = terminationStore;
+                Extensions.Termination = true;
+            }
+
+            if (store is ITusReadableStore readableStore)
+            {
+                _readableStore = readableStore;
+                Extensions.CreationDeferLength = true;
+            }
+        }
+
+        public static List<string> GetCapabilities(Type storeType)
+        {
+            List<string> capabilities = new List<string>();
+
+            var interfaces = storeType.GetInterfaces();
+
+            if (interfaces.Contains(typeof(ITusCreationStore)))
+            {
+                capabilities.Add(ExtensionConstants.Creation);
+                capabilities.Add(ExtensionConstants.CreationWithUpload);
+            }
+            if (interfaces.Contains(typeof(ITusTerminationStore)))
+            {
+                capabilities.Add(ExtensionConstants.Termination);
+            }
+            if (interfaces.Contains(typeof(ITusChecksumStore)))
+            {
+                capabilities.Add(ExtensionConstants.Checksum);
+            }
+            if (interfaces.Contains(typeof(ITusConcatenationStore)))
+            {
+                capabilities.Add(ExtensionConstants.Concatenation);
+            }
+            if (interfaces.Contains(typeof(ITusExpirationStore)))
+            {
+                capabilities.Add(ExtensionConstants.Expiration);
+            }
+            if (interfaces.Contains(typeof(ITusCreationDeferLengthStore)))
+            {
+                capabilities.Add(ExtensionConstants.CreationDeferLength);
+            }
+
+            return capabilities;
         }
 
         public Task<long> AppendDataAsync(string fileId, Stream stream, CancellationToken cancellationToken)
         {
             return _store.AppendDataAsync(fileId, stream, cancellationToken);
+        }
+
+        public Task DeleteFileAsync(string fileId, CancellationToken cancellationToken)
+        {
+            return _terminationStore.DeleteFileAsync(fileId, cancellationToken);
         }
 
         public Task<string> CreateFileAsync(long uploadLength, string metadata, CancellationToken cancellationToken)
@@ -102,6 +173,31 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public Task<bool> VerifyChecksumAsync(string fileId, string algorithm, byte[] checksum, CancellationToken cancellationToken)
         {
             return _checksumStore.VerifyChecksumAsync(fileId, algorithm, checksum, cancellationToken);
+        }
+
+        public Task<FileConcat> GetUploadConcatAsync(string fileId, CancellationToken cancellationToken)
+        {
+            return _concatStore.GetUploadConcatAsync(fileId, cancellationToken);
+        }
+
+        public Task<string> CreatePartialFileAsync(long uploadLength, string metadata, CancellationToken cancellationToken)
+        {
+            return _concatStore.CreatePartialFileAsync(uploadLength, metadata, cancellationToken);
+        }
+
+        public Task<string> CreateFinalFileAsync(string[] partialFiles, string metadata, CancellationToken cancellationToken)
+        {
+            return _concatStore.CreateFinalFileAsync(partialFiles, metadata, cancellationToken);
+        }
+
+        public Task SetUploadLengthAsync(string fileId, long uploadLength, CancellationToken cancellationToken)
+        {
+            return _creationDeferLengthStore.SetUploadLengthAsync(fileId, uploadLength, cancellationToken);
+        }
+
+        public Task<ITusFile> GetFileAsync(string fileId, CancellationToken cancellationToken)
+        {
+            return _readableStore.GetFileAsync(fileId, cancellationToken);
         }
     }
 }

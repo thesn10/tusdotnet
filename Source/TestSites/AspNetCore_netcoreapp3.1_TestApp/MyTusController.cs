@@ -1,39 +1,54 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Models;
+using tusdotnet.Models.Expiration;
+using tusdotnet.Stores;
 
 namespace AspNetCore_netcoreapp3._1_TestApp
 {
-    public class MyTusController : TusController<MyTusConfigurator>
+    [TusController]
+    [TusInheritCapabilities(typeof(TusDiskStore))]
+    //[TusEnableExtension("creation", "termination")]
+    public class MyTusController : TusControllerBase
     {
         private readonly ILogger<MyTusController> _logger;
+        private readonly TusStorageService _storage;
 
-        public MyTusController(StorageService<MyTusConfigurator> storage, ILogger<MyTusController> logger)
-            : base(storage)
+        public MyTusController(TusStorageService storage, ILogger<MyTusController> logger)
         {
+            _storage = storage;
             _logger = logger;
         }
 
         [Authorize(Policy = "create-file-policy")]
-        public override async Task<IActionResult> Create(CreateContext context, CancellationToken cancellation)
+        public override async Task<ITusCreateActionResult> Create(CreateContext context, CancellationToken cancellation)
         {
             var errors = ValidateMetadata(context.Metadata);
 
             if (errors.Count > 0)
             {
-                return new BadRequestObjectResult(errors);
+                return Fail(errors[0]);
             }
 
-            var result = await base.Create(context, cancellation).ConfigureAwait(false);
+            var createResult = await _storage.Create(context, new CreateOptions()
+            {
 
-            _logger.LogInformation($"File created with id {context.FileId}");
+                Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(10)),
+                Store = new TusDiskStore(Constants.FileDirectory),
 
-            return result;
+                // Different directory per user example:
+                //Store = new TusDiskStore(@"C:\tusfiles\" + User.Identity.Name + @"\")
+
+            }, cancellation);
+
+            _logger.LogInformation($"File created with id {createResult.FileId}");
+
+            return CreateOk(createResult.FileId);
         }
 
         private List<string> ValidateMetadata(IDictionary<string, Metadata> metadata)
@@ -53,21 +68,39 @@ namespace AspNetCore_netcoreapp3._1_TestApp
             return errors;
         }
 
-        public override async Task<IActionResult> Write(WriteContext context, CancellationToken cancellationToken)
+        public override async Task<ITusWriteActionResult> Write(WriteContext context, CancellationToken cancellationToken)
         {
             _logger.LogInformation($"Started writing file {context.FileId} at offset {context.UploadOffset}");
 
-            var result = await base.Write(context, cancellationToken).ConfigureAwait(false);
+            var writeResult = await _storage.Write(context, new WriteOptions()
+            {
+                Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes)),
+                Store = new TusDiskStore(Constants.FileDirectory),
+
+            }, cancellationToken);
 
             _logger.LogInformation($"Done writing file {context.FileId}. New offset: {context.UploadOffset}");
 
-            return result;
+            return WriteOk(writeResult);
         }
 
-        public override Task<IActionResult> FileCompleted(FileCompletedContext context, CancellationToken cancellation)
+        public override Task<ITusCompletedActionResult> FileCompleted(FileCompletedContext context, CancellationToken cancellation)
         {
             _logger.LogInformation($"Upload of file {context.FileId} is complete!");
             return base.FileCompleted(context, cancellation);
+        }
+
+        public override async Task<ITusInfoActionResult> GetFileInfo(GetFileInfoContext context, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation($"Getting file info of file {context.FileId}");
+
+            var info = await _storage.GetFileInfo(context, new GetFileInfoOptions()
+            {
+                Store = new TusDiskStore(Constants.FileDirectory),
+
+            }, cancellationToken);
+
+            return FileInfoOk(info);
         }
     }
 }

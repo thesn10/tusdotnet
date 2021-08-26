@@ -54,7 +54,7 @@ namespace tusdotnet.IntentHandlers
             : base(context, IntentType.CreateFile, LockType.NoLock)
         {
             _creationStore = creationStore;
-            _expirationHelper = new ExpirationHelper(context.Configuration);
+            _expirationHelper = new ExpirationHelper(context.Configuration.Store as ITusExpirationStore, context.Configuration.Expiration, context.Configuration.GetSystemTime);
         }
 
         internal override async Task Invoke()
@@ -108,6 +108,7 @@ namespace tusdotnet.IntentHandlers
                 }
             }
 
+            // ActionResult
             SetReponseHeaders(fileId, expires, uploadOffset);
 
             Response.SetStatus(HttpStatusCode.Created);

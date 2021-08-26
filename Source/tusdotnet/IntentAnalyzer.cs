@@ -1,14 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using tusdotnet.Adapters;
 using tusdotnet.Constants;
 using tusdotnet.IntentHandlers;
 using tusdotnet.Interfaces;
+using tusdotnet.Models;
 
 namespace tusdotnet
 {
     internal static class IntentAnalyzer
     {
-        public static IntentHandler DetermineIntent(ContextAdapter context)
+        public static IntentType DetermineIntent(ContextAdapter context)
         {
             var httpMethod = GetHttpMethod(context.Request);
 
@@ -16,7 +19,7 @@ namespace tusdotnet
             {
                 if (context.Request.GetHeader(HeaderConstants.TusResumable) == null)
                 {
-                    return IntentHandler.NotApplicable;
+                    return IntentType.NotApplicable;
                 }
             }
 
@@ -24,22 +27,57 @@ namespace tusdotnet
             {
                 if (!UrlMatchesFileIdUrl(context.Request.RequestUri, context.Configuration.UrlPath))
                 {
-                    return IntentHandler.NotApplicable;
+                    return IntentType.NotApplicable;
                 }
             }
             else if (!UrlMatchesUrlPath(context.Request.RequestUri, context.Configuration.UrlPath))
             {
-                return IntentHandler.NotApplicable;
+                return IntentType.NotApplicable;
             }
 
             return httpMethod switch
             {
                 "post" => DetermineIntentForPost(context),
-                "patch" => DetermineIntentForPatch(context),
-                "head" => DetermineIntentForHead(context),
-                "options" => DetermineIntentForOptions(context),
+                "patch" => DetermineIntentForPatch(),
+                "head" => DetermineIntentForHead(),
+                "options" => DetermineIntentForOptions(),
                 "delete" => DetermineIntentForDelete(context),
-                _ => IntentHandler.NotApplicable,
+                _ => IntentType.NotApplicable,
+            };
+        }
+
+        public static IntentType DetermineIntent(ContextAdapter context, IEnumerable<string> extensions)
+        {
+            var httpMethod = GetHttpMethod(context.Request);
+
+            if (RequestRequiresTusResumableHeader(httpMethod))
+            {
+                if (context.Request.GetHeader(HeaderConstants.TusResumable) == null)
+                {
+                    return IntentType.NotApplicable;
+                }
+            }
+
+            if (MethodRequiresFileIdUrl(httpMethod))
+            {
+                if (!UrlMatchesFileIdUrl(context.Request.RequestUri, context.Configuration.UrlPath))
+                {
+                    return IntentType.NotApplicable;
+                }
+            }
+            else if (!UrlMatchesUrlPath(context.Request.RequestUri, context.Configuration.UrlPath))
+            {
+                return IntentType.NotApplicable;
+            }
+
+            return httpMethod switch
+            {
+                "post" => DetermineIntentForPost(context, extensions),
+                "patch" => DetermineIntentForPatch(),
+                "head" => DetermineIntentForHead(),
+                "options" => DetermineIntentForOptions(),
+                "delete" => DetermineIntentForDelete(extensions),
+                _ => IntentType.NotApplicable,
             };
         }
 
@@ -73,43 +111,90 @@ namespace tusdotnet
             }
         }
 
-        private static IntentHandler DetermineIntentForOptions(ContextAdapter context)
+        private static IntentType DetermineIntentForOptions()
         {
-            return new GetOptionsHandler(context);
+            return IntentType.GetOptions;
         }
 
-        private static IntentHandler DetermineIntentForHead(ContextAdapter context)
+        private static IntentType DetermineIntentForHead()
         {
-            return new GetFileInfoHandler(context);
+            return IntentType.GetFileInfo;
         }
 
-        private static IntentHandler DetermineIntentForPost(ContextAdapter context)
+        private static IntentType DetermineIntentForPost(ContextAdapter context)
         {
             if (!(context.Configuration.Store is ITusCreationStore creationStore))
-                return IntentHandler.NotApplicable;
+                return IntentType.NotApplicable;
 
             var hasUploadConcatHeader = context.Request.Headers.ContainsKey(HeaderConstants.UploadConcat);
 
             if (context.Configuration.Store is ITusConcatenationStore tusConcatenationStore
                 && hasUploadConcatHeader)
             {
-                return new ConcatenateFilesHandler(context, tusConcatenationStore);
+                return IntentType.ConcatenateFiles;
             }
 
-            return new CreateFileHandler(context, creationStore);
+            return IntentType.CreateFile;
         }
 
-        private static IntentHandler DetermineIntentForPatch(ContextAdapter context)
+        private static IntentType DetermineIntentForPost(ContextAdapter context, IEnumerable<string> extensions)
         {
-            return new WriteFileHandler(context, initiatedFromCreationWithUpload: false);
+            if (!(extensions.Contains(ExtensionConstants.Creation)))
+                return IntentType.NotApplicable;
+
+            var hasUploadConcatHeader = context.Request.Headers.ContainsKey(HeaderConstants.UploadConcat);
+
+            if (extensions.Contains(ExtensionConstants.Concatenation)
+                && hasUploadConcatHeader)
+            {
+                return IntentType.ConcatenateFiles;
+            }
+
+            return IntentType.CreateFile;
         }
 
-        private static IntentHandler DetermineIntentForDelete(ContextAdapter context)
+        private static IntentType DetermineIntentForPatch()
+        {
+            return IntentType.WriteFile;
+        }
+
+        private static IntentType DetermineIntentForDelete(ContextAdapter context)
         {
             if (!(context.Configuration.Store is ITusTerminationStore terminationStore))
-                return IntentHandler.NotApplicable;
+                return IntentType.NotApplicable;
 
-            return new DeleteFileHandler(context, terminationStore);
+            return IntentType.DeleteFile;
+        }
+
+        private static IntentType DetermineIntentForDelete(IEnumerable<string> extensions)
+        {
+            if (!extensions.Contains(ExtensionConstants.Termination))
+                return IntentType.NotApplicable;
+
+            return IntentType.DeleteFile;
+        }
+
+        public static IntentHandler GetHandler(IntentType type, ContextAdapter context)
+        {
+            switch (type)
+            {
+                case IntentType.NotApplicable:
+                    return IntentHandler.NotApplicable;
+                case IntentType.CreateFile:
+                    return new CreateFileHandler(context, context.Configuration.Store as ITusCreationStore);
+                case IntentType.ConcatenateFiles:
+                    return new ConcatenateFilesHandler(context, context.Configuration.Store as ITusConcatenationStore);
+                case IntentType.WriteFile:
+                    return new WriteFileHandler(context, initiatedFromCreationWithUpload: false);
+                case IntentType.DeleteFile:
+                    return new DeleteFileHandler(context, context.Configuration.Store as ITusTerminationStore);
+                case IntentType.GetFileInfo:
+                    return new GetFileInfoHandler(context);
+                case IntentType.GetOptions:
+                    return new GetOptionsHandler(context);
+                default:
+                    throw new InvalidOperationException();
+            }
         }
 
         private static bool RequestRequiresTusResumableHeader(string httpMethod)

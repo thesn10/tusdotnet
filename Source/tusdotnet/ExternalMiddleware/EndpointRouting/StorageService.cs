@@ -1,87 +1,127 @@
 ﻿#if endpointrouting
 
-using Microsoft.AspNetCore.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Expiration;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
-    public sealed class StorageService<TTusConfigurator> where TTusConfigurator : ITusConfigurator
+    public sealed class TusStorageService
     {
-        private StoreAdapter _storeAdapter;
-        private EndpointOptions _options;
-        private readonly TTusConfigurator _configurator;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-
-        public StorageService(TTusConfigurator configurator, IHttpContextAccessor httpContextAccessor)
+        public TusStorageService()
         {
-            _configurator = configurator;
-            _httpContextAccessor = httpContextAccessor;
+
         }
 
-        public async Task<StoreAdapter> GetStore()
+        public async Task<CreateResult> Create(CreateContext context, CreateOptions options, CancellationToken cancellationToken)
         {
-            await LoadOptions();
-            return _storeAdapter;
-        }
+            options.Validate();
 
-        public async Task Create(CreateContext context, CancellationToken cancellationToken)
-        {
-            await LoadOptions();
+            var storeAdapter = new StoreAdapter(options.Store);
+            var createResult = new CreateResult();
 
-            context.FileId = await _storeAdapter.CreateFileAsync(context.UploadLength, context.UploadMetadata, cancellationToken);
+            createResult.FileId = await storeAdapter.CreateFileAsync(context.UploadLength, context.UploadMetadata, cancellationToken);
 
-            if (_storeAdapter.Extensions.Expiration && _options.Expiration != null)
+            if (storeAdapter.Extensions.Expiration && options.Expiration != null)
             {
                 // Expiration is only used when patching files so if the file is not empty and we did not have any data in the current request body,
                 // we need to update the header here to be able to keep track of expiration for this file.
-                context.FileExpires = _options.GetSystemTime().Add(_options.Expiration.Timeout);
-                await _storeAdapter.SetExpirationAsync(context.FileId, context.FileExpires.Value, cancellationToken);
+                createResult.FileExpires = options.GetSystemTime().Add(options.Expiration.Timeout);
+                await storeAdapter.SetExpirationAsync(createResult.FileId, createResult.FileExpires.Value, cancellationToken);
             }
+
+            return createResult;
         }
 
-        public async Task Write(WriteContext context, CancellationToken cancellationToken)
+        public async Task<WriteResult> Write(WriteContext context, WriteOptions options, CancellationToken cancellationToken)
         {
-            await LoadOptions();
+            options.Validate();
+
+            var storeAdapter = new StoreAdapter(options.Store);
+            var writeResult = new WriteResult();
+
+            var fileLock = await options.FileLockProvider.AquireLock(context.FileId);
+
+            var hasLock = await fileLock.Lock();
+            if (!hasLock)
+            {
+                throw new TusFileAlreadyInUseException(context.FileId);
+            }
+
+            if (context.UploadLength.HasValue && storeAdapter.Extensions.CreationDeferLength)
+            {
+                await storeAdapter.SetUploadLengthAsync(context.FileId, context.UploadLength.Value, cancellationToken);
+            }
 
             var guardedStream = new ClientDisconnectGuardedReadOnlyStream(context.RequestStream, CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
-            var bytesWritten = await _storeAdapter.AppendDataAsync(context.FileId, guardedStream, guardedStream.CancellationToken);
+            var bytesWritten = await storeAdapter.AppendDataAsync(context.FileId, guardedStream, guardedStream.CancellationToken);
 
-            context.UploadOffset += bytesWritten;
+            writeResult.UploadOffset = context.UploadOffset.Value + bytesWritten;
 
-            if (!_storeAdapter.Extensions.Expiration)
-                return;
-
-            if (_options.Expiration is SlidingExpiration)
+            if (storeAdapter.Extensions.Expiration)
             {
-                context.FileExpires = _options.GetSystemTime().Add(_options.Expiration.Timeout);
-                await _storeAdapter.SetExpirationAsync(context.FileId, context.FileExpires.Value, cancellationToken);
+                if (options.Expiration is SlidingExpiration)
+                {
+                    writeResult.FileExpires = options.GetSystemTime().Add(options.Expiration.Timeout);
+                    await storeAdapter.SetExpirationAsync(context.FileId, writeResult.FileExpires.Value, cancellationToken);
+                }
+                else
+                {
+                    writeResult.FileExpires = await storeAdapter.GetExpirationAsync(context.FileId, cancellationToken);
+                }
             }
-            else
+
+            if (storeAdapter.Extensions.Checksum)
             {
-                context.FileExpires = await _storeAdapter.GetExpirationAsync(context.FileId, cancellationToken);
+                var checksum = context.GetChecksumProvidedByClient();
+
+                if (checksum != null)
+                    writeResult.ChecksumMatches = await storeAdapter.VerifyChecksumAsync(context.FileId, checksum.Algorithm, checksum.Hash, cancellationToken);
             }
 
-            if (!_storeAdapter.Extensions.Checksum)
-                return;
-
-            var checksum = context.GetChecksumProvidedByClient();
-
-            if (checksum != null)
-                context.ChecksumMatchesTheOneProvidedByClient = await _storeAdapter.VerifyChecksumAsync(context.FileId, checksum.Algorithm, checksum.Hash, cancellationToken);
-
-            context.IsComplete = await _storeAdapter.GetUploadLengthAsync(context.FileId, cancellationToken) == context.UploadOffset;
+            writeResult.IsComplete = await storeAdapter.GetUploadLengthAsync(context.FileId, cancellationToken) == writeResult.UploadOffset;
+            return writeResult;
         }
 
-        private async Task LoadOptions()
+        public async Task Delete(DeleteContext context, DeleteOptions options, CancellationToken cancellationToken)
         {
-            if (_options != null)
-                return;
+            options.Validate();
 
-            _options = await _configurator.Configure(_httpContextAccessor.HttpContext);
-            _storeAdapter = new StoreAdapter(_options.Store);
+            var storeAdapter = new StoreAdapter(options.Store);
+
+            await storeAdapter.DeleteFileAsync(context.FileId, cancellationToken);
+        }
+
+        public Task<ITusFile> Read(ITusStore store, string fileId, CancellationToken cancellationToken)
+        {
+            var storeAdapter = new StoreAdapter(store);
+
+            return storeAdapter.GetFileAsync(fileId, cancellationToken);
+        }
+
+        public async Task<GetFileInfoResult> GetFileInfo(GetFileInfoContext context, GetFileInfoOptions options, CancellationToken cancellationToken)
+        {
+            options.Validate();
+
+            var storeAdapter = new StoreAdapter(options.Store);
+            var getFileInfoResult = new GetFileInfoResult();
+
+            if (storeAdapter.Extensions.Creation)
+            {
+                getFileInfoResult.UploadMetadata = await storeAdapter.GetUploadMetadataAsync(context.FileId, cancellationToken);
+            }
+
+            getFileInfoResult.UploadLength = await storeAdapter.GetUploadLengthAsync(context.FileId, cancellationToken);
+            getFileInfoResult.UploadOffset = await storeAdapter.GetUploadOffsetAsync(context.FileId, cancellationToken);
+
+            if (storeAdapter.Extensions.Concatenation)
+            {
+                getFileInfoResult.UploadConcat = await storeAdapter.GetUploadConcatAsync(context.FileId, cancellationToken);
+            }
+
+            return getFileInfoResult;
         }
     }
 }

@@ -57,7 +57,8 @@ namespace tusdotnet.IntentHandlers
                 _checksum = new Checksum(checksumHeader);
             }
 
-            _expirationHelper = new ExpirationHelper(Context.Configuration);
+            _expirationHelper = new ExpirationHelper(context.Configuration.Store as ITusExpirationStore, 
+                context.Configuration.Expiration, context.Configuration.GetSystemTime);
             _initiatedFromCreationWithUpload = initiatedFromCreationWithUpload;
         }
 

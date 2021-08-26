@@ -2,17 +2,18 @@
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using System;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
     public static class EndpointBuilderExtensions
     {
-        public static IEndpointConventionBuilder MapTus<TController, TConfigurator>(this IEndpointRouteBuilder endpoints, string pattern)
-            where TController : TusController<TConfigurator>
-            where TConfigurator : ITusConfigurator
+        public static IEndpointRouteBuilder MapTus(this IEndpointRouteBuilder endpoints, Action<ITusEndpointBuilder> builder)
         {
-            var handler = new TusProtocolHandlerEndpointBased<TController, TConfigurator>();
-            return endpoints.Map(pattern + "/{TusFileId?}", handler.Invoke);
+            var tusEndpointBuilder = new TusEndpointBuilder(endpoints);
+            builder(tusEndpointBuilder);
+
+            return endpoints;
         }
     }
 }

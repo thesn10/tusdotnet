@@ -16,12 +16,12 @@ namespace tusdotnet.Helpers
 
         public bool IsSlidingExpiration => _expiration is SlidingExpiration;
 
-        internal ExpirationHelper(DefaultTusConfiguration configuration)
+        internal ExpirationHelper(ITusExpirationStore store, ExpirationBase expiration, Func<DateTimeOffset> getSystemTime)
         {
-            _expirationStore = configuration.Store as ITusExpirationStore;
-            _expiration = configuration.Expiration;
+            _expirationStore = store;
+            _expiration = expiration;
             _isSupported = _expirationStore != null && _expiration != null;
-            _getSystemTime = configuration.GetSystemTime;
+            _getSystemTime = getSystemTime;
         }
 
         internal async Task<DateTimeOffset?> SetExpirationIfSupported(string fileId, CancellationToken cancellationToken)

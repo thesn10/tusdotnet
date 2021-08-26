@@ -1,4 +1,5 @@
 using AspNetCore_netcoreapp3._1_TestApp.Authentication;
+using AspNetCore_netcoreapp3._1_TestApp.Endpoints;
 using AspNetCore_netcoreapp3_1_TestApp.Middleware;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -8,8 +9,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Helpers;
+using tusdotnet.Models;
+using tusdotnet.Models.Expiration;
 
 namespace AspNetCore_netcoreapp3._1_TestApp
 {
@@ -41,9 +45,7 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             services.AddLogging(builder => builder.AddConsole());
 
-            services.AddTus()
-                    .AddConfigurator<MyTusConfigurator>()
-                    .AddController<MyTusController, MyTusConfigurator>();
+            services.AddTus();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -85,10 +87,26 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             app.UseAuthorization();
 
-            // All GET requests to tusdotnet are forwarded so that you can handle file downloads.
-            // This is done because the file's metadata is domain specific and thus cannot be handled 
-            // in a generic way by tusdotnet.
-            app.UseEndpoints(endpoints => endpoints.MapTus<MyTusController, MyTusConfigurator>("/files").RequireAuthorization());
+            app.UseEndpoints(endpoints => 
+            {
+                // Example of a custom download enpoint (which is domain specific
+                // and thus cannot be handled in a generic way by tusdotnet)
+                endpoints.MapGet("/files/{fileId}", DownloadFileEndpoint.HandleRoute);
+
+                endpoints.MapTus(tusEndpoints =>
+                {
+                    tusEndpoints.MapController<MyTusController>("/files").RequireAuthorization();
+
+                    // If you dont want to write your own controller, you can use this abstraction:
+                    tusEndpoints.Map("/simple/files", (options, storageOptions) =>
+                    {
+                        options.MetadataParsingStrategy = MetadataParsingStrategy.Original;
+
+                        storageOptions.UseDiskStore(Constants.FileDirectory);
+                        storageOptions.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));
+                    });
+                });
+            });
         }
     }
 }

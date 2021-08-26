@@ -49,7 +49,8 @@ namespace tusdotnet.IntentHandlers
         {
             UploadConcat = ParseUploadConcatHeader();
             _concatenationStore = concatenationStore;
-            _expirationHelper = new ExpirationHelper(context.Configuration);
+            _expirationHelper = new ExpirationHelper(context.Configuration.Store as ITusExpirationStore, 
+                context.Configuration.Expiration, context.Configuration.GetSystemTime);
             _isPartialFile = UploadConcat.Type is FileConcatPartial;
         }
 

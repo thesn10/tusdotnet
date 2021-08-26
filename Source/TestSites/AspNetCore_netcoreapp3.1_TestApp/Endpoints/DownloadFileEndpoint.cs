@@ -3,8 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
+using tusdotnet.Stores;
 
 namespace AspNetCore_netcoreapp3._1_TestApp.Endpoints
 {
@@ -12,15 +14,10 @@ namespace AspNetCore_netcoreapp3._1_TestApp.Endpoints
     {
         public static async Task HandleRoute(HttpContext context)
         {
-            var config = context.RequestServices.GetRequiredService<DefaultTusConfiguration>();
-
-            if (!(config.Store is ITusReadableStore store))
-            {
-                return;
-            }
+            var storageService = context.RequestServices.GetRequiredService<TusStorageService>();
 
             var fileId = (string)context.Request.RouteValues["fileId"];
-            var file = await store.GetFileAsync(fileId, context.RequestAborted);
+            var file = await storageService.Read(new TusDiskStore(Constants.FileDirectory), fileId, context.RequestAborted);
 
             if (file == null)
             {

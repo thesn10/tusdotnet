@@ -1,9 +1,12 @@
 ﻿#if endpointrouting
 
-using Microsoft.Extensions.DependencyInjection;
+// Uncomment when needed again in the future
+
+/*using Microsoft.Extensions.DependencyInjection;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    // Uncomment when needed again
     public sealed class TusServiceCollection
     {
         public IServiceCollection Services { get; }
@@ -13,23 +16,14 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             Services = services;
         }
 
-        public TusServiceCollection AddController<TController, TConfigurator>()
-            where TController : TusController<TConfigurator>
-            where TConfigurator : class, ITusConfigurator
+        public TusServiceCollection AddController<TController>()
+            where TController : TusController
         {
             Services.AddTransient<TController, TController>();
 
             return this;
         }
-
-        public TusServiceCollection AddConfigurator<TConfigurator>() where TConfigurator : class, ITusConfigurator
-        {
-            Services.AddScoped<TConfigurator, TConfigurator>();
-            Services.AddScoped<StorageService<TConfigurator>, StorageService<TConfigurator>>();
-
-            return this;
-        }
     }
-}
+}*/
 
 #endif
