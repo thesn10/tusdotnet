@@ -10,7 +10,7 @@ using tusdotnet.Interfaces;
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
     /// <summary>
-    /// A builtin tus controller for lazy people
+    /// A builtin tus controller which is used by endpoints.MapTusSimpleEndpoint()
     /// </summary>
     [TusController]
     internal class SimpleTusController : TusControllerBase, IControllerWithOptions<StorageOptions>

@@ -93,18 +93,16 @@ namespace AspNetCore_netcoreapp3._1_TestApp
                 // and thus cannot be handled in a generic way by tusdotnet)
                 endpoints.MapGet("/files/{fileId}", DownloadFileEndpoint.HandleRoute);
 
-                endpoints.MapTus(tusEndpoints =>
+                // Map the tus controller endpoint
+                endpoints.MapTusController<MyTusController>("/files").RequireAuthorization();
+
+                // If you dont need to write your own controller, you can use this simpler abstraction:
+                endpoints.MapTusSimpleEndpoint("/simple/files", (options, storageOptions) =>
                 {
-                    tusEndpoints.MapController<MyTusController>("/files").RequireAuthorization();
+                    options.MetadataParsingStrategy = MetadataParsingStrategy.Original;
 
-                    // If you dont want to write your own controller, you can use this abstraction:
-                    tusEndpoints.Map("/simple/files", (options, storageOptions) =>
-                    {
-                        options.MetadataParsingStrategy = MetadataParsingStrategy.Original;
-
-                        storageOptions.UseDiskStore(Constants.FileDirectory);
-                        storageOptions.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));
-                    });
+                    storageOptions.UseDiskStore(Constants.FileDirectory);
+                    storageOptions.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));
                 });
             });
         }
