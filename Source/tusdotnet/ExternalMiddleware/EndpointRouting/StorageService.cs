@@ -24,7 +24,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             createResult.FileId = await storeAdapter.CreateFileAsync(context.UploadLength, context.UploadMetadata, cancellationToken);
 
-            if (storeAdapter.Extensions.Expiration && options.Expiration != null)
+            if (storeAdapter.Extensions.Expiration && options.Expiration != null && context.UploadLength != 0)
             {
                 // Expiration is only used when patching files so if the file is not empty and we did not have any data in the current request body,
                 // we need to update the header here to be able to keep track of expiration for this file.
@@ -57,6 +57,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             var guardedStream = new ClientDisconnectGuardedReadOnlyStream(context.RequestStream, CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
             var bytesWritten = await storeAdapter.AppendDataAsync(context.FileId, guardedStream, guardedStream.CancellationToken);
+            await fileLock.ReleaseIfHeld();
 
             writeResult.UploadOffset = context.UploadOffset.Value + bytesWritten;
 

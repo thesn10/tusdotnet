@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using tusdotnet.Adapters;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.Core;
+using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
 using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
 using tusdotnet.Parsers;
@@ -113,304 +114,24 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             }*/
 
             IActionResult result = null;
-            IDictionary<string, string> headers = null;
 
             switch (intentType)
             {
                 case IntentType.CreateFile:
-                    (result, headers) = await HandleCreate(context, controller);
+                    result = await new CreateRequestHandler(context, controller, _options).Invoke();
                     break;
                 case IntentType.WriteFile:
-                    (result, headers) = await HandleWriteFile(context, controller);
+                    result = await new WriteRequestHandler(context, controller, _options).Invoke();
                     break;
                 case IntentType.GetFileInfo:
-                    (result, headers) = await HandleGetFileInfo(context, controller);
+                    result = await new GetFileInfoRequestHandler(context, controller, _options).Invoke();
                     break;
                 case IntentType.GetOptions:
-                    (result, headers) = await HandleGetOptions(context, controller);
+                    result = await new GetOptionsRequestHandler(context, controller, _options).Invoke();
                     break;
             }
 
-            await context.Respond(result, headers);
-        }
-
-        private async Task<(IActionResult result, IDictionary<string, string> headers)> HandleGetOptions(HttpContext context, TusControllerBase controller)
-        {
-            var result = new Dictionary<string, string>
-            {
-                {HeaderConstants.TusResumable, HeaderConstants.TusResumableValue },
-                {HeaderConstants.TusVersion, HeaderConstants.TusResumableValue }
-            };
-
-            var maximumAllowedSize = _options.MaxAllowedUploadSizeInBytes;
-
-            if (maximumAllowedSize.HasValue)
-            {
-                result.Add(HeaderConstants.TusMaxSize, maximumAllowedSize.Value.ToString());
-            }
-
-            var capabilities = await controller.GetCapabilities();
-            if (capabilities.SupportedExtensions.Count > 0)
-            {
-                result.Add(HeaderConstants.TusExtension, string.Join(",", capabilities.SupportedExtensions));
-            }
-
-            if (capabilities.SupportedChecksumAlgorithms.Count > 0)
-            {
-                result.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", capabilities.SupportedChecksumAlgorithms));
-            }
-
-            return (new NoContentResult(), result);
-        }
-
-        private async Task<(IActionResult result, IDictionary<string, string> headers)> HandleGetFileInfo(HttpContext context, TusControllerBase controller)
-        {
-            if (!await controller.AuthorizeForAction(context, nameof(controller.GetFileInfo)))
-                return (new ForbidResult(), null);
-
-            var fileId = (string)context.GetRouteValue("TusFileId");
-
-            var result = new Dictionary<string, string>
-            {
-                {HeaderConstants.TusResumable, HeaderConstants.TusResumableValue },
-                {HeaderConstants.CacheControl, HeaderConstants.NoStore }
-            };
-
-            var getInfoContext = new GetFileInfoContext()
-            {
-                FileId = fileId,
-            };
-
-            ITusInfoActionResult getInfoResult;
-            try
-            {
-                getInfoResult = await controller.GetFileInfo(getInfoContext, context.RequestAborted);
-            }
-            catch (TusStoreException ex)
-            {
-                return (new BadRequestObjectResult(ex.Message), null);
-            }
-
-            if (getInfoResult is TusFail fail)
-            {
-                return (new BadRequestObjectResult(fail.Error), null);
-            }
-
-            if (getInfoResult is TusForbidden forbidden)
-            {
-                return (new ForbidResult(), null);
-            }
-
-            var getInfoOk = getInfoResult as TusInfoOk;
-
-            if (getInfoOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {getInfoResult.GetType().FullName}");
-            }
-
-            if (!string.IsNullOrEmpty(getInfoOk.UploadMetadata))
-            {
-                result.Add(HeaderConstants.UploadMetadata, getInfoOk.UploadMetadata);
-            }
-            
-            if (getInfoOk.UploadDeferLength)
-            {
-                result.Add(HeaderConstants.UploadDeferLength, "1");
-            }
-            else if (getInfoOk.UploadLength != null)
-            {
-                result.Add(HeaderConstants.UploadLength, getInfoOk.UploadLength.Value.ToString());
-            }
-
-            var addUploadOffset = true;
-            if (getInfoOk.UploadConcat != null)
-            {
-                // Only add Upload-Offset to final files if they are complete.
-                if (getInfoOk.UploadConcat is FileConcatFinal && getInfoOk.UploadLength != getInfoOk.UploadOffset)
-                {
-                    addUploadOffset = false;
-                }
-            }
-
-            if (addUploadOffset)
-            {
-                result.Add(HeaderConstants.UploadOffset, getInfoOk.UploadOffset.ToString());
-            }
-
-            if (getInfoOk.UploadConcat != null)
-            {
-                (getInfoOk.UploadConcat as FileConcatFinal)?.AddUrlPathToFiles(context.Request.GetDisplayUrl());
-                result.Add(HeaderConstants.UploadConcat, getInfoOk.UploadConcat.GetHeader());
-            }
-
-            return (new NoContentResult(), result);
-        }
-
-        private async Task<(IActionResult content, IDictionary<string, string> headers)> HandleWriteFile(HttpContext context, TusControllerBase controller)
-        {
-            if (!await controller.AuthorizeForAction(context, nameof(controller.Write)))
-                return (new ForbidResult(), null);
-
-            long? uploadLength = null;
-            if (context.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
-            {
-                uploadLength = long.Parse(context.Request.Headers[HeaderConstants.UploadLength].First());
-            }
-
-            long? uploadOffset = null;
-            if (context.Request.Headers.ContainsKey(HeaderConstants.UploadOffset))
-            {
-                uploadOffset = long.Parse(context.Request.Headers[HeaderConstants.UploadOffset].First());
-            }
-            else
-            {
-                // CreationWithUpload
-                //uploadOffset = 0;
-            }
-
-            var writeContext = new WriteContext
-            {
-                FileId = (string)context.GetRouteValue("TusFileId"),
-                // Callback to later support trailing checksum headers
-                GetChecksumProvidedByClient = () => GetChecksumFromContext(context),
-                RequestStream = context.Request.Body,
-                UploadOffset = uploadOffset,
-                UploadLength = uploadLength
-            };
-
-            ITusWriteActionResult writeResult = null;
-            try
-            {
-                writeResult = await controller.Write(writeContext, context.RequestAborted);
-            }
-            catch (TusFileAlreadyInUseException ex)
-            {
-                return (new ConflictObjectResult(ex.Message), null);
-            }
-            catch (TusStoreException ex)
-            {
-                return (new BadRequestObjectResult(ex.Message), null);
-            }
-
-            if (writeResult is TusFail fail)
-            {
-                return (new BadRequestObjectResult(fail.Error), null);
-            }
-            else if (writeResult is TusForbidden forbidden)
-            {
-                return (new ForbidResult(), null);
-            }
-
-            var writeOk = writeResult as TusWriteOk;
-
-            if (writeOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {writeResult.GetType().FullName}");
-            }
-
-            if (writeOk.ClientDisconnectedDuringRead)
-            {
-                return (new OkResult(), null);
-            }
-
-            if (writeOk.IsComplete && !writeContext.IsPartialFile)
-            {
-                await controller.FileCompleted(new() { FileId = writeContext.FileId }, context.RequestAborted);
-            }
-
-            return (new NoContentResult(), GetCreateHeaders(writeOk.FileExpires, writeOk.UploadOffset));
-        }
-
-        private Checksum GetChecksumFromContext(HttpContext context)
-        {
-            var header = context.Request.Headers[HeaderConstants.UploadChecksum].FirstOrDefault();
-
-            return header != null ? new Checksum(header) : null;
-        }
-
-        private async Task<(IActionResult content, IDictionary<string, string> headers)> HandleCreate(HttpContext context, TusControllerBase controller)
-        {
-            if (!await controller.AuthorizeForAction(context, nameof(controller.Create)))
-                return (new ForbidResult(), null);
-
-            // TODO: Replace with typed headers
-            var metadata = context.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
-            var uploadLength = context.Request.Headers[HeaderConstants.UploadLength].FirstOrDefault();
-
-            var createContext = new CreateContext
-            {
-                UploadMetadata = metadata,
-                Metadata = MetadataParser.ParseAndValidate(_options.MetadataParsingStrategy, metadata).Metadata,
-                UploadLength = long.Parse(uploadLength),
-            };
-
-            ITusCreateActionResult createResult;
-            try
-            {
-                createResult = await controller.Create(createContext, context.RequestAborted);
-            }
-            catch (TusStoreException ex)
-            {
-                return (new BadRequestObjectResult(ex.Message), null);
-            }
-
-            if (createResult is TusFail fail)
-            {
-                return (new BadRequestObjectResult(fail.Error), null);
-            }
-
-            if (createResult is TusForbidden forbidden)
-            {
-                return (new ForbidResult(), null);
-            }
-
-            var createOk = createResult as TusCreateOk;
-
-            if (createOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {createResult.GetType().FullName}");
-            }
-
-            var isEmptyFile = createContext.UploadLength == 0;
-
-            if (isEmptyFile)
-            {
-                var completedResult = await controller.FileCompleted(new() { FileId = createOk.FileId }, context.RequestAborted);
-
-                if (completedResult is TusFail completeFail)
-                    return (new BadRequestObjectResult(completeFail.Error), null);
-
-                var createdResult = new CreatedResult($"{context.Request.GetDisplayUrl().TrimEnd('/')}/{createOk.FileId}", null);
-
-                return (createdResult, GetCreateHeaders(createOk.Expires, null));
-            }
-            else
-            {
-                // Creation with upload
-                var (writeResult, headers) = await HandleWriteFile(context, controller);
-
-                var createdResult = new CreatedResult($"{context.Request.GetDisplayUrl().TrimEnd('/')}/{createOk.FileId}", null);
-
-                return (createdResult, headers);
-            }
-        }
-
-        private Dictionary<string, string> GetCreateHeaders(DateTimeOffset? expires, long? uploadOffset)
-        {
-            var result = new Dictionary<string, string>();
-            if (expires != null)
-            {
-                result.Add(HeaderConstants.UploadExpires, expires.Value.ToString("R"));
-            }
-
-            if (uploadOffset != null)
-            {
-                result.Add(HeaderConstants.UploadOffset, uploadOffset.Value.ToString());
-            }
-
-            result.Add(HeaderConstants.TusResumable, HeaderConstants.TusResumableValue);
-
-            return result;
+            await context.Respond(result, null);
         }
 
         private ContextAdapter CreateFakeContextAdapter(HttpContext context)

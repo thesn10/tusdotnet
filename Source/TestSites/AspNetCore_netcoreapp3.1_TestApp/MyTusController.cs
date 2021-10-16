@@ -79,7 +79,7 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             }, cancellationToken);
 
-            _logger.LogInformation($"Done writing file {context.FileId}. New offset: {context.UploadOffset}");
+            _logger.LogInformation($"Done writing file {context.FileId}. New offset: {writeResult.UploadOffset}");
 
             return WriteOk(writeResult);
         }
