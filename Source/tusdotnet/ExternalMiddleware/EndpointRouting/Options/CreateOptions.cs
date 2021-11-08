@@ -1,19 +1,15 @@
 ﻿#if endpointrouting
 
 using System;
-using tusdotnet.Interfaces;
-using tusdotnet.Models;
 using tusdotnet.Models.Expiration;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// Options for <see cref="TusStorageClient.Create"/>
+    /// </summary>
     public class CreateOptions
     {
-        /// <summary>
-        /// The store to use when storing files.
-        /// </summary>
-        public ITusStore Store { get; set; }
-
         /// <summary>
         /// Set an expiration time where incomplete files can no longer be updated.
         /// This value can either be <c>AbsoluteExpiration</c> or <c>SlidingExpiration</c>.
@@ -33,14 +29,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         internal DateTimeOffset GetSystemTime()
         {
             return _systemTime ?? DateTimeOffset.UtcNow;
-        }
-
-        internal void Validate()
-        {
-            if (Store == null)
-            {
-                throw new TusConfigurationException($"{nameof(Store)} cannot be null.");
-            }
         }
     }
 }

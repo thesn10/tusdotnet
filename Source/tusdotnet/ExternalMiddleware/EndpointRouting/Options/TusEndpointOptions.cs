@@ -4,7 +4,7 @@ using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
-    public class TusEndpointOptions
+    public class TusEndpointOptions : ITusEndpointOptions
     {
         /// <summary>
         /// The maximum upload size to allow. Exceeding this limit will return a "413 Request Entity Too Large" error to the client.

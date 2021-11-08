@@ -1,5 +1,9 @@
 ﻿using System;
 
+#if endpointrouting
+using tusdotnet.ExternalMiddleware.EndpointRouting;
+#endif
+
 namespace tusdotnet.Models
 {
 	/// <summary>
@@ -7,7 +11,11 @@ namespace tusdotnet.Models
 	/// All TusStoreExceptions will result in a 400 Bad Request response with the exception message
 	/// as the response body.
 	/// </summary>
+#if endpointrouting
+	public class TusStoreException : TusException
+#else
 	public class TusStoreException : Exception
+#endif
 	{
 		/// <summary>
 		/// Initializes a new instance of the <see cref="TusStoreException"/> class.

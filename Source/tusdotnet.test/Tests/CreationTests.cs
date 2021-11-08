@@ -394,7 +394,7 @@ namespace tusdotnet.test.Tests
             long? uploadLength = null;
             bool? uploadLengthIsDeferred = null;
             FileConcat fileConcat = null;
-            Dictionary<string, Metadata> metadata = null;
+            IDictionary<string, Metadata> metadata = null;
             string callbackFileId = null;
             var events = new Events
             {
@@ -466,7 +466,7 @@ namespace tusdotnet.test.Tests
             long? uploadLength = null;
             bool? uploadLengthIsDeferred = null;
             FileConcat fileConcat = null;
-            Dictionary<string, Metadata> metadata = null;
+            IDictionary<string, Metadata> metadata = null;
             string callbackFileId = null;
             var events = new Events
             {

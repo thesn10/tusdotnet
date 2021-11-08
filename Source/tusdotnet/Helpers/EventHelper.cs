@@ -15,7 +15,7 @@ namespace tusdotnet.Helpers
 
         internal static async Task<ResultType> Validate<T>(ContextAdapter context, Action<T> configure = null) where T : ValidationContext<T>, new()
         {
-            var handler = GetHandler<T>(context);
+            var handler = GetHandler<T>(context.Configuration.Events);
 
             if (handler == null)
                 return ResultType.ContinueExecution;
@@ -41,7 +41,7 @@ namespace tusdotnet.Helpers
 
         internal static async Task Notify<T>(ContextAdapter context, Action<T> configure = null) where T : EventContext<T>, new()
         {
-            var handler = GetHandler<T>(context);
+            var handler = GetHandler<T>(context.Configuration.Events);
 
             if (handler == null)
             {
@@ -75,16 +75,16 @@ namespace tusdotnet.Helpers
             }
         }
 
-        private static Func<T, Task> GetHandler<T>(ContextAdapter context) where T : EventContext<T>, new()
+        private static Func<T, Task> GetHandler<T>(Events events) where T : EventContext<T>, new()
         {
-            if (context.Configuration.Events == null)
+            if (events == null)
             {
                 return null;
             }
 
             var handlerProperty = _eventHandlers.Value[typeof(T)];
 
-            var handler = handlerProperty.GetValue(context.Configuration.Events) as Func<T, Task>;
+            var handler = handlerProperty.GetValue(events) as Func<T, Task>;
             return handler;
         }
 

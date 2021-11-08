@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using tusdotnet.Adapters;
 using tusdotnet.Constants;
 using tusdotnet.IntentHandlers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
+using tusdotnet.Stores;
 
 namespace tusdotnet
 {
@@ -46,7 +45,7 @@ namespace tusdotnet
             };
         }
 
-        public static IntentType DetermineIntent(ContextAdapter context, IEnumerable<string> extensions)
+        public static IntentType DetermineIntent(ContextAdapter context, StoreExtensions extensions)
         {
             var httpMethod = GetHttpMethod(context.Request);
 
@@ -137,15 +136,14 @@ namespace tusdotnet
             return IntentType.CreateFile;
         }
 
-        private static IntentType DetermineIntentForPost(ContextAdapter context, IEnumerable<string> extensions)
+        private static IntentType DetermineIntentForPost(ContextAdapter context, StoreExtensions extensions)
         {
-            if (!(extensions.Contains(ExtensionConstants.Creation)))
+            if (!extensions.Creation)
                 return IntentType.NotApplicable;
 
             var hasUploadConcatHeader = context.Request.Headers.ContainsKey(HeaderConstants.UploadConcat);
 
-            if (extensions.Contains(ExtensionConstants.Concatenation)
-                && hasUploadConcatHeader)
+            if (extensions.Concatenation && hasUploadConcatHeader)
             {
                 return IntentType.ConcatenateFiles;
             }
@@ -166,9 +164,9 @@ namespace tusdotnet
             return IntentType.DeleteFile;
         }
 
-        private static IntentType DetermineIntentForDelete(IEnumerable<string> extensions)
+        private static IntentType DetermineIntentForDelete(StoreExtensions extensions)
         {
-            if (!extensions.Contains(ExtensionConstants.Termination))
+            if (!extensions.Termination)
                 return IntentType.NotApplicable;
 
             return IntentType.DeleteFile;

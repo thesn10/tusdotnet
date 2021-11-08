@@ -61,6 +61,11 @@
     <DefineConstants>$(DefineConstants);netstandard;endpointrouting</DefineConstants>
   </PropertyGroup>
 
+  <ItemGroup Condition="!$(DefineConstants.Contains(endpointrouting))">
+    <Compile Remove="ExternalMiddleware\EndpointRouting\**" />
+    <None Include="ExternalMiddleware\EndpointRouting\**" />
+  </ItemGroup>
+
   <!-- Package references for .NET Framework -->
   <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="1.1.1" />

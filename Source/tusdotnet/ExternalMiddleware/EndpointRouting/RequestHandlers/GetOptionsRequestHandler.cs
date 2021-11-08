@@ -1,23 +1,28 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using tusdotnet.Adapters;
 using tusdotnet.Constants;
-using tusdotnet.Models;
-using tusdotnet.Parsers;
+using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
+    /*
+    * An OPTIONS request MAY be used to gather information about the Server’s current configuration. 
+    * A successful response indicated by the 204 No Content status MUST contain the Tus-Version header. 
+    * It MAY include the Tus-Extension and Tus-Max-Size headers.
+    * The Client SHOULD NOT include the Tus-Resumable header in the request and the Server MUST discard it.
+    */
+
     internal class GetOptionsRequestHandler : RequestHandler
     {
-        internal GetOptionsRequestHandler(HttpContext context, TusControllerBase controller, TusEndpointOptions options)
-            : base(context, controller, options)
+        internal override RequestRequirement[] Requires => new RequestRequirement[]
+        {
+
+        };
+
+        internal GetOptionsRequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
+            : base(context, controller, extensionInfo, options)
         {
 
         }
@@ -35,15 +40,14 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 _context.Response.Headers.Add(HeaderConstants.TusMaxSize, maximumAllowedSize.Value.ToString());
             }
 
-            var capabilities = await _controller.GetCapabilities();
-            if (capabilities.SupportedExtensions.Count > 0)
+            if (_extensionInfo.SupportedExtensions.Any())
             {
-                _context.Response.Headers.Add(HeaderConstants.TusExtension, string.Join(",", capabilities.SupportedExtensions));
+                _context.Response.Headers.Add(HeaderConstants.TusExtension, string.Join(",", _extensionInfo.SupportedExtensions.ToList()));
             }
 
-            if (capabilities.SupportedChecksumAlgorithms.Count > 0)
+            if (_extensionInfo.SupportedChecksumAlgorithms.Count > 0)
             {
-                _context.Response.Headers.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", capabilities.SupportedChecksumAlgorithms));
+                _context.Response.Headers.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", _extensionInfo.SupportedChecksumAlgorithms));
             }
 
             return new NoContentResult();

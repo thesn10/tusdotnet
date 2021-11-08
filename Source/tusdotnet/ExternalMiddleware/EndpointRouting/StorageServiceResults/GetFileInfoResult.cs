@@ -10,7 +10,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public long? UploadLength { get; set; }
         public long UploadOffset { get; set; }
         public FileConcat UploadConcat { get; set; }
-        public bool UploadDeferLength { get; set; }
     }
 }
 #endif

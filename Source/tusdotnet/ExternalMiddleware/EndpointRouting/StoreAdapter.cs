@@ -9,6 +9,7 @@ using System.Linq;
 using tusdotnet.Interfaces;
 using tusdotnet.Models.Concatenation;
 using tusdotnet.Constants;
+using tusdotnet.Stores;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -25,12 +26,15 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         private readonly ITusTerminationStore _terminationStore;
 
         public StoreExtensions Extensions { get; }
+        public StoreFeatures Features { get; }
+        public ITusStore Store => _store;
 
         public StoreAdapter(ITusStore store)
         {
             _store = store;
 
             Extensions = new();
+            Features = new();
 
             if (store is ITusCreationStore creationStore)
             {
@@ -71,7 +75,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             if (store is ITusReadableStore readableStore)
             {
                 _readableStore = readableStore;
-                Extensions.CreationDeferLength = true;
+                Features.Readable = true;
             }
         }
 

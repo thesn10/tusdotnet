@@ -3,11 +3,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using tusdotnet.Adapters;
 using tusdotnet.Constants;
+using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
+using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -15,12 +14,16 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
     {
         protected readonly HttpContext _context;
         protected readonly TusControllerBase _controller;
-        protected readonly TusEndpointOptions _options;
+        protected readonly TusExtensionInfo _extensionInfo;
+        protected readonly ITusEndpointOptions _options;
 
-        internal RequestHandler(HttpContext context, TusControllerBase controller, TusEndpointOptions options)
+        internal abstract RequestRequirement[] Requires { get; }
+
+        internal RequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
         {
             _context = context;
             _controller = controller;
+            _extensionInfo = extensionInfo;
             _options = options;
         }
 
@@ -49,6 +52,26 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         protected void SetCacheNoStoreHeader()
         {
             _context.Response.Headers.Add(HeaderConstants.CacheControl, HeaderConstants.NoStore);
+        }
+
+        internal static RequestHandler GetInstance(IntentType intentType, HttpContext context, TusControllerBase controller, 
+            TusExtensionInfo extensionInfo, ITusEndpointOptions options)
+        {
+            switch (intentType)
+            {
+                case IntentType.CreateFile:
+                    return new CreateRequestHandler(context, controller, extensionInfo, options);
+                case IntentType.WriteFile:
+                    return new WriteRequestHandler(context, controller, extensionInfo, options);
+                case IntentType.DeleteFile:
+                    return new DeleteRequestHandler(context, controller, extensionInfo, options);
+                case IntentType.GetFileInfo:
+                    return new GetFileInfoRequestHandler(context, controller, extensionInfo, options);
+                case IntentType.GetOptions:
+                    return new GetOptionsRequestHandler(context, controller, extensionInfo, options);
+                default:
+                    return null;
+            }
         }
     }
 }

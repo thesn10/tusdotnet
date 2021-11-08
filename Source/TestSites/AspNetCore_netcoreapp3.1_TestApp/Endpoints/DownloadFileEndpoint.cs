@@ -14,10 +14,12 @@ namespace AspNetCore_netcoreapp3._1_TestApp.Endpoints
     {
         public static async Task HandleRoute(HttpContext context)
         {
-            var storageService = context.RequestServices.GetRequiredService<TusStorageService>();
-
             var fileId = (string)context.Request.RouteValues["fileId"];
-            var file = await storageService.Read(new TusDiskStore(Constants.FileDirectory), fileId, context.RequestAborted);
+
+            var storageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
+            var storageClient = await storageClientProvider.Default();
+
+            var file = await storageClient.Get(fileId, context.RequestAborted);
 
             if (file == null)
             {

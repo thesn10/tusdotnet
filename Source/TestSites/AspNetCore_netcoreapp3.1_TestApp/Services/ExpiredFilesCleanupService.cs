@@ -3,36 +3,36 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Expiration;
 
-namespace AspNetCore_netcoreapp3_1_TestApp.Services
+namespace AspNetCore_netcoreapp3._1_TestApp.Services
 {
     public class ExpiredFilesCleanupService : IHostedService, IDisposable
     {
         private readonly ITusExpirationStore _expirationStore;
         private readonly ExpirationBase _expiration;
         private readonly ILogger<ExpiredFilesCleanupService> _logger;
+        private readonly ITusStorageClientProvider _storageClientProvider;
         private Timer _timer;
+        private TimeSpan _timeout;
+        private TusStorageClient _storageClient;
 
-        public ExpiredFilesCleanupService(ILogger<ExpiredFilesCleanupService> logger, DefaultTusConfiguration config)
+        public ExpiredFilesCleanupService(ILogger<ExpiredFilesCleanupService> logger, ITusStorageClientProvider storageClientProvider)
         {
             _logger = logger;
-            _expirationStore = (ITusExpirationStore)config.Store;
-            _expiration = config.Expiration;
+            _storageClientProvider = storageClientProvider;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            if (_expiration == null)
-            {
-                _logger.LogInformation("Not running cleanup job as no expiration has been set.");
-                return;
-            }
+            _timeout = TimeSpan.FromMinutes(Constants.FileExpirationInMinutes);
+            _storageClient = await _storageClientProvider.Default();
 
             await RunCleanup(cancellationToken);
-            _timer = new Timer(async (e) => await RunCleanup((CancellationToken)e), cancellationToken, TimeSpan.Zero, _expiration.Timeout);
+            _timer = new Timer(async (e) => await RunCleanup((CancellationToken)e), cancellationToken, TimeSpan.Zero, _timeout);
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
@@ -51,8 +51,8 @@ namespace AspNetCore_netcoreapp3_1_TestApp.Services
             try
             {
                 _logger.LogInformation("Running cleanup job...");
-                var numberOfRemovedFiles = await _expirationStore.RemoveExpiredFilesAsync(cancellationToken);
-                _logger.LogInformation($"Removed {numberOfRemovedFiles} expired files. Scheduled to run again in {_expiration.Timeout.TotalMilliseconds} ms");
+                var numberOfRemovedFiles = await (_storageClient.Store as ITusExpirationStore).RemoveExpiredFilesAsync(cancellationToken);
+                _logger.LogInformation($"Removed {numberOfRemovedFiles} expired files. Scheduled to run again in {_timeout.TotalMilliseconds} ms");
             }
             catch (Exception exc)
             {

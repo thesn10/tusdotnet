@@ -9,11 +9,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using System;
+using System.Net;
+using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Helpers;
 using tusdotnet.Models;
+using tusdotnet.Models.Concatenation;
+using tusdotnet.Models.Configuration;
 using tusdotnet.Models.Expiration;
+using tusdotnet.Stores;
 
 namespace AspNetCore_netcoreapp3._1_TestApp
 {
@@ -45,12 +51,18 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             services.AddLogging(builder => builder.AddConsole());
 
-            services.AddTus();
+            services
+                .AddTus()
+                .AddController<MyTusController>()
+                .AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), isDefault: true)
+                .AddEndpointServices();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            var logger = app.ApplicationServices.GetService<ILoggerFactory>().CreateLogger<Startup>();
+
             app.Use((context, next) =>
             {
                 // Default limit was changed some time ago. Should work by setting MaxRequestBodySize to null using ConfigureKestrel but this does not seem to work for IISExpress.
@@ -93,16 +105,23 @@ namespace AspNetCore_netcoreapp3._1_TestApp
                 // and thus cannot be handled in a generic way by tusdotnet)
                 endpoints.MapGet("/files/{fileId}", DownloadFileEndpoint.HandleRoute);
 
-                // Map the tus controller endpoint
-                endpoints.MapTusController<MyTusController>("/files").RequireAuthorization();
+                // Map a tus controller
+                endpoints.MapTusController<MyTusController>("/controller/files").RequireAuthorization();
 
                 // If you dont need to write your own controller, you can use this simpler abstraction:
-                endpoints.MapTusSimpleEndpoint("/simple/files", (options, storageOptions) =>
+                endpoints.MapTusEndpoint("/files", (options) =>
                 {
-                    options.MetadataParsingStrategy = MetadataParsingStrategy.Original;
-
-                    storageOptions.UseDiskStore(Constants.FileDirectory);
-                    storageOptions.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));
+                    options.StorageProfile = "my-storage";
+                    options.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));
+                    options.MetadataParsingStrategy = MetadataParsingStrategy.AllowEmptyValues;
+                    options.Events = new Events
+                    {
+                        OnFileCompleteAsync = ctx =>
+                        {
+                            logger.LogInformation($"Upload of {ctx.FileId} completed using {ctx.Store.GetType().FullName}");
+                            return Task.CompletedTask;
+                        }
+                    };
                 });
             });
         }

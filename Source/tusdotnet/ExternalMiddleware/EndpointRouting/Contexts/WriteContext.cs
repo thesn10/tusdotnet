@@ -8,14 +8,15 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
     public class WriteContext
     {
-        public string FileId { get; internal set; }
+        public string FileId { get; set; }
 
-        public long? UploadOffset { get; internal set; }
-        public long? UploadLength { get; internal set; }
+        public long UploadOffset { get; set; }
 
-        public Func<Checksum> GetChecksumProvidedByClient { get; internal set; }
+        public long? UploadLength { get; set; }
 
-        public Stream RequestStream { get; internal set; }
+        public Func<Checksum> GetChecksumProvidedByClient { get; set; }
+
+        public Stream RequestStream { get; set; }
 
         public bool IsPartialFile { get; set; }
     }

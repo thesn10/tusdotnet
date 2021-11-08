@@ -6,7 +6,6 @@
     /// </summary>
     public static class Constants
     {
-        public const string FileDirectory = @"C:\tusfiles\";
         public const int FileExpirationInMinutes = 10;
     }
 }

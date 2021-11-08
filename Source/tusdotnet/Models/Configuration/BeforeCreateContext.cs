@@ -21,7 +21,7 @@ namespace tusdotnet.Models.Configuration
         /// <summary>
         /// The metadata for the file.
         /// </summary>
-        public Dictionary<string, Metadata> Metadata { get; set; }
+        public IDictionary<string, Metadata> Metadata { get; set; }
 
         /// <summary>
         /// File concatenation information if the concatenation extension is used in the request,
