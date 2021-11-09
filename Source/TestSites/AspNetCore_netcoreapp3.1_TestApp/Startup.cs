@@ -109,7 +109,7 @@ namespace AspNetCore_netcoreapp3._1_TestApp
                 endpoints.MapTusController<MyTusController>("/files").RequireAuthorization();
 
                 // If you dont need to write your own controller, you can use this simpler abstraction:
-                endpoints.MapTusEndpoint("/endpoint/files", (options) =>
+                endpoints.MapTus("/other-files", (options) =>
                 {
                     options.StorageProfile = "my-storage";
                     options.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));

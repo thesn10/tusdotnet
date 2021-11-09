@@ -11,7 +11,7 @@ using tusdotnet.Models.Configuration;
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
     /// <summary>
-    /// A builtin tus controller which is used by endpoints.MapTusEndpoint()
+    /// A builtin tus controller which is used by endpoints.MapTus()
     /// </summary>
     [TusController]
     internal sealed class EventsBasedTusController : TusControllerBase, IControllerWithOptions<TusSimpleEndpointOptions>

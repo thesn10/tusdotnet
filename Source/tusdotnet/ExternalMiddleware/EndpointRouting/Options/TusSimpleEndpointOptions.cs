@@ -18,7 +18,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public MetadataParsingStrategy MetadataParsingStrategy { get; set; } = MetadataParsingStrategy.AllowEmptyValues;
 
         /// <inheritdoc/>
-        public string StorageProfile { get; set; }
+        public string StorageProfile { get; set; } = "default";
 
         /// <summary>
         /// Set an expiration time where incomplete files can no longer be updated.

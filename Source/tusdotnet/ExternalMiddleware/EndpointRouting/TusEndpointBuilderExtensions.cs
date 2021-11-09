@@ -29,11 +29,11 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <summary>
         /// Maps a tus endpoint to the specified pattern. For advanced configuration use MapTusController
         /// </summary>
-        public static IEndpointConventionBuilder MapTusEndpoint(this IEndpointRouteBuilder endpoints, string pattern, Action<TusSimpleEndpointOptions> config)
+        public static IEndpointConventionBuilder MapTus(this IEndpointRouteBuilder endpoints, string pattern, Action<TusSimpleEndpointOptions> config = null)
         {
             var options = new TusSimpleEndpointOptions();
 
-            config(options);
+            config?.Invoke(options);
 
             var handler = new TusProtocolHandlerEndpointBased<EventsBasedTusController, TusSimpleEndpointOptions>(options, options);
             return endpoints.Map(pattern + "/{TusFileId?}", handler.Invoke);
