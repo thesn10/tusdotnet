@@ -3,6 +3,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Reflection;
 using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.Core;
@@ -64,17 +65,18 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         internal async Task Invoke(HttpContext context, TusControllerBase controller)
         {
             var storageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
-            var profileName = controller.GetType().GetCustomAttribute<TusStorageProfileAttribute>()?.ProfileName ?? "default";
+
+            ApplyControllerAttributeOptions(controller.GetType());
 
             // Inject services into the controller
             controller.HttpContext = context;
             controller.StorageClientProvider = storageClientProvider;
-            controller.StorageClient = await storageClientProvider.GetOrNull(profileName);
+            controller.StorageClient = await storageClientProvider.GetOrNull(_options.StorageProfile);
 
             var contextAdapter = ContextAdapterBuilder.CreateFakeContextAdapter(context, new DefaultTusConfiguration() { });
             var extensionInfo = await controller.GetOptions();
-            var intentType = IntentAnalyzer.DetermineIntent(contextAdapter, extensionInfo.SupportedExtensions);
 
+            var intentType = IntentAnalyzer.DetermineIntent(contextAdapter, extensionInfo.SupportedExtensions);
             if (intentType == IntentType.NotApplicable)
             {
                 // Cannot determine intent so return not found.
@@ -98,7 +100,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             await context.Respond(result, null);
         }
 
-        internal async Task RespondWithValidationError(HttpContext context, RequestValidator validator)
+        private async Task RespondWithValidationError(HttpContext context, RequestValidator validator)
         {
             if (validator.ErrorMessage != null)
             {
@@ -110,6 +112,27 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             {
                 var result = new StatusCodeResult((int)validator.StatusCode);
                 await context.Respond(result, null);
+            }
+        }
+
+        private void ApplyControllerAttributeOptions(Type controllerType)
+        {
+            TusStorageProfileAttribute storageProfileAttr = controllerType.GetCustomAttribute<TusStorageProfileAttribute>();
+            if (storageProfileAttr != null)
+            {
+                _options.StorageProfile = storageProfileAttr.ProfileName ?? "default";
+            }
+
+            TusMetadataParsingAttribute metadatParsingAttr = controllerType.GetCustomAttribute<TusMetadataParsingAttribute>();
+            if (metadatParsingAttr != null)
+            {
+                _options.MetadataParsingStrategy = metadatParsingAttr.Strategy;
+            }
+
+            TusMaxUploadSizeAttribute maxUploadAttr = controllerType.GetCustomAttribute<TusMaxUploadSizeAttribute>();
+            if (maxUploadAttr != null)
+            {
+                _options.MaxAllowedUploadSizeInBytes = maxUploadAttr.MaxUploadSizeInBytes;
             }
         }
     }

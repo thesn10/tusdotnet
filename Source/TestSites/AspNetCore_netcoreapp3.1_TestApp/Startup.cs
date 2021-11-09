@@ -106,10 +106,10 @@ namespace AspNetCore_netcoreapp3._1_TestApp
                 endpoints.MapGet("/files/{fileId}", DownloadFileEndpoint.HandleRoute);
 
                 // Map a tus controller
-                endpoints.MapTusController<MyTusController>("/controller/files").RequireAuthorization();
+                endpoints.MapTusController<MyTusController>("/files").RequireAuthorization();
 
                 // If you dont need to write your own controller, you can use this simpler abstraction:
-                endpoints.MapTusEndpoint("/files", (options) =>
+                endpoints.MapTusEndpoint("/endpoint/files", (options) =>
                 {
                     options.StorageProfile = "my-storage";
                     options.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));

@@ -7,9 +7,8 @@ namespace tusdotnet.Stores
     public class StoreExtensions
     {
         public bool Creation { get; set; }
-
+        public bool CreationWithUpload { get; set; }
         public bool Expiration { get; set; }
-
         public bool Checksum { get; set; }
         public bool Concatenation { get; set; }
         public bool CreationDeferLength { get; set; }
@@ -22,6 +21,9 @@ namespace tusdotnet.Stores
             if (Creation)
             {
                 extensionList.Add(ExtensionConstants.Creation);
+            }
+            if (CreationWithUpload)
+            {
                 extensionList.Add(ExtensionConstants.CreationWithUpload);
             }
             if (Termination)
@@ -51,6 +53,36 @@ namespace tusdotnet.Stores
         public bool Any()
         {
             return Creation || Expiration || Checksum || Concatenation || CreationDeferLength || Termination;
+        }
+
+        public void Disable(string extensionName)
+        {
+            switch (extensionName)
+            {
+                case ExtensionConstants.Creation:
+                    Creation = false;
+                    break;
+                case ExtensionConstants.CreationWithUpload:
+                    CreationWithUpload = false;
+                    break;
+                case ExtensionConstants.Termination:
+                    Termination = false;
+                    break;
+                case ExtensionConstants.Checksum:
+                    Checksum = false;
+                    break;
+                case ExtensionConstants.Concatenation:
+                    Concatenation = false;
+                    break;
+                case ExtensionConstants.Expiration:
+                    Expiration = false;
+                    break;
+                case ExtensionConstants.CreationDeferLength:
+                    CreationDeferLength = false;
+                    break;
+                default:
+                    break;
+            }
         }
     }
 }

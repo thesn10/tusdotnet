@@ -40,6 +40,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             {
                 _creationStore = creationStore;
                 Extensions.Creation = true;
+                Extensions.CreationWithUpload = true;
             }
 
             if (store is ITusExpirationStore expirationStore)

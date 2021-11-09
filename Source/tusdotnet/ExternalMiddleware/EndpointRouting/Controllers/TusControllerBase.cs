@@ -104,9 +104,20 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <summary>
         /// Override this if you want to change the supported tus extensions of your controller
         /// </summary>
-        public virtual Task<TusExtensionInfo> GetOptions()
+        public virtual async Task<TusExtensionInfo> GetOptions()
         {
-            return StorageClient?.GetExtensionInfo(HttpContext.RequestAborted);
+            var extensionInfo = await StorageClient?.GetExtensionInfo(HttpContext.RequestAborted);
+
+            var disabledExts = GetType().GetCustomAttribute<TusDisableExtensionAttribute>()?.ExtensionNames;
+            if (disabledExts != null)
+            {
+                foreach (var disabledExt in disabledExts)
+                {
+                    extensionInfo.SupportedExtensions.Disable(disabledExt);
+                }
+            }
+
+            return extensionInfo;
         }
 
         // TODO
