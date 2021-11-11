@@ -1,13 +1,16 @@
-﻿#if endpointrouting
-
-using System.IO;
+﻿using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
-using tusdotnet.Models.Expiration;
+using tusdotnet.Stores;
+
+#if pipelines
+using System.IO.Pipelines;
+#endif
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -32,24 +35,14 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// Creates a new file
         /// </summary>
         /// <exception cref="TusStoreException"></exception>
-        public async Task<CreateResult> Create(long uploadLength, string uploadMetadata, 
+        public Task<CreateResult> Create(long uploadLength, string uploadMetadata, 
             CreateOptions options = default, CancellationToken cancellationToken = default)
         {
             options ??= new CreateOptions();
 
-            var createResult = new CreateResult();
+            var createOp = new CreateOperationHandler(_storeAdapter);
 
-            createResult.FileId = await _storeAdapter.CreateFileAsync(uploadLength, uploadMetadata, cancellationToken);
-
-            if (_storeAdapter.Extensions.Expiration && options.Expiration != null && uploadLength != 0)
-            {
-                // Expiration is only used when patching files so if the file is not empty and we did not have any data in the current request body,
-                // we need to update the header here to be able to keep track of expiration for this file.
-                createResult.FileExpires = options.GetSystemTime().Add(options.Expiration.Timeout);
-                await _storeAdapter.SetExpirationAsync(createResult.FileId, createResult.FileExpires.Value, cancellationToken);
-            }
-
-            return createResult;
+            return createOp.Create(uploadLength, uploadMetadata, options, cancellationToken);
         }
 
         /// <summary>
@@ -65,66 +58,28 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <exception cref="TusFileAlreadyCompleteException"></exception>
         /// <exception cref="TusConfigurationException"></exception>
         /// <exception cref="TusStoreException"></exception>
-        public async Task<WriteResult> Write(string fileId, Stream requestStream, long uploadOffset, long? uploadLength, 
+        public Task<WriteResult> Write(string fileId, Stream requestStream, long uploadOffset, long? uploadLength, 
             WriteOptions options = default, CancellationToken cancellationToken = default)
         {
             options ??= new WriteOptions();
 
-            var checksum = options.GetChecksumProvidedByClient?.Invoke();
+            var writeOp = new WriteOperationHandler(_storeAdapter);
 
-            var validator = new StorageValidator(
-                new FileExist(fileId),
-                new UploadLengthForWriteFile(fileId, uploadLength),
-                new UploadConcatForWriteFile(fileId),
-                new UploadChecksum(checksum),
-                new FileHasNotExpired(fileId),
-                new RequestOffsetMatchesFileOffset(uploadOffset, fileId),
-                new FileIsNotCompleted(fileId));
-
-            await validator.Validate(_storeAdapter, cancellationToken);
-
-            var writeResult = new WriteResult();
-            var fileLock = await options.FileLockProvider.AquireLock(fileId);
-            var hasLock = await fileLock.Lock();
-
-            if (!hasLock)
-            {
-                throw new TusFileAlreadyInUseException(fileId);
-            }
-
-            if (uploadLength.HasValue && _storeAdapter.Extensions.CreationDeferLength)
-            {
-                await _storeAdapter.SetUploadLengthAsync(fileId, uploadLength.Value, cancellationToken);
-            }
-
-            var guardedStream = new ClientDisconnectGuardedReadOnlyStream(requestStream, CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
-            var bytesWritten = await _storeAdapter.AppendDataAsync(fileId, guardedStream, guardedStream.CancellationToken);
-            await fileLock.ReleaseIfHeld();
-
-            writeResult.UploadOffset = uploadOffset + bytesWritten;
-
-            if (_storeAdapter.Extensions.Expiration)
-            {
-                if (options.Expiration is SlidingExpiration)
-                {
-                    writeResult.FileExpires = options.GetSystemTime().Add(options.Expiration.Timeout);
-                    await _storeAdapter.SetExpirationAsync(fileId, writeResult.FileExpires.Value, cancellationToken);
-                }
-                else
-                {
-                    writeResult.FileExpires = await _storeAdapter.GetExpirationAsync(fileId, cancellationToken);
-                }
-            }
-
-            if (_storeAdapter.Extensions.Checksum)
-            {
-                if (checksum != null)
-                    writeResult.ChecksumMatches = await _storeAdapter.VerifyChecksumAsync(fileId, checksum.Algorithm, checksum.Hash, cancellationToken);
-            }
-
-            writeResult.IsComplete = await _storeAdapter.GetUploadLengthAsync(fileId, cancellationToken) == writeResult.UploadOffset;
-            return writeResult;
+            return writeOp.Write(fileId, requestStream, uploadOffset, uploadLength, options, cancellationToken);
         }
+
+#if pipelines
+        /// <inheritdoc cref="Write(string, Stream, long, long?, WriteOptions, CancellationToken)"/>
+        public Task<WriteResult> Write(string fileId, PipeReader requestReader, long uploadOffset, long? uploadLength,
+            WriteOptions options = default, CancellationToken cancellationToken = default)
+        {
+            options ??= new WriteOptions();
+
+            WriteOperationHandler writeOp = new WriteOperationHandler(_storeAdapter);
+
+            return writeOp.Write(fileId, requestReader, uploadOffset, uploadLength, options, cancellationToken);
+        }
+#endif
 
         /// <summary>
         /// Deletes a file
@@ -156,30 +111,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <summary>
         /// Gets the file info
         /// </summary>
-        public async Task<GetFileInfoResult> GetFileInfo(string fileId, CancellationToken cancellationToken = default)
+        public Task<GetFileInfoResult> GetFileInfo(string fileId, CancellationToken cancellationToken = default)
         {
-            var getFileInfoResult = new GetFileInfoResult();
-
-            var validator = new StorageValidator(
-                new FileExist(fileId),
-                new FileHasNotExpired(fileId));
-
-            await validator.Validate(_storeAdapter, cancellationToken);
-
-            if (_storeAdapter.Extensions.Creation)
-            {
-                getFileInfoResult.UploadMetadata = await _storeAdapter.GetUploadMetadataAsync(fileId, cancellationToken);
-            }
-
-            getFileInfoResult.UploadLength = await _storeAdapter.GetUploadLengthAsync(fileId, cancellationToken);
-            getFileInfoResult.UploadOffset = await _storeAdapter.GetUploadOffsetAsync(fileId, cancellationToken);
-
-            if (_storeAdapter.Extensions.Concatenation)
-            {
-                getFileInfoResult.UploadConcat = await _storeAdapter.GetUploadConcatAsync(fileId, cancellationToken);
-            }
-
-            return getFileInfoResult;
+            var getFileInfoOp = new GetFileInfoOperationHandler(_storeAdapter);
+            return getFileInfoOp.GetFileInfo(fileId, cancellationToken);
         }
 
         /// <summary>
@@ -210,12 +145,26 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <inheritdoc cref="Write(string, Stream, long, long?, WriteOptions, CancellationToken)"/>
         public Task<WriteResult> Write(WriteContext context, WriteOptions options = default, CancellationToken cancellationToken = default)
         {
-            return Write(context.FileId, context.RequestStream, context.UploadOffset, context.UploadLength, new WriteOptions()
+#if pipelines
+            if (_storeAdapter.Features.Pipelines && options.UsePipelinesIfAvailable)
             {
-                Expiration = options.Expiration,
-                FileLockProvider = options.FileLockProvider,
-                GetChecksumProvidedByClient = options.GetChecksumProvidedByClient ?? context.GetChecksumProvidedByClient,
-            }, cancellationToken);
+                return Write(context.FileId, context.RequestReader, context.UploadOffset, context.UploadLength, new WriteOptions()
+                {
+                    Expiration = options.Expiration,
+                    FileLockProvider = options.FileLockProvider,
+                    GetChecksumProvidedByClient = options.GetChecksumProvidedByClient ?? context.GetChecksumProvidedByClient,
+                }, cancellationToken);
+            }
+            else
+#endif
+            {
+                return Write(context.FileId, context.RequestStream, context.UploadOffset, context.UploadLength, new WriteOptions()
+                {
+                    Expiration = options.Expiration,
+                    FileLockProvider = options.FileLockProvider,
+                    GetChecksumProvidedByClient = options.GetChecksumProvidedByClient ?? context.GetChecksumProvidedByClient,
+                }, cancellationToken);
+            }
         }
 
         /// <inheritdoc cref="Delete(string, CancellationToken)"/>
@@ -231,5 +180,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         }
     }
 }
-
-#endif

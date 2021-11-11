@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using tusdotnet.Models;
+﻿using tusdotnet.Models;
+using tusdotnet.Parsers.MetadataParserHelpers;
 
 namespace tusdotnet.Parsers
 {
@@ -33,42 +32,18 @@ namespace tusdotnet.Parsers
             *   to help with compatibility with clients that are less than ideal.
             * */
 
-            var parser = GetParser(strategy);
+#if NETCOREAPP3_1_OR_GREATER
 
-            if (string.IsNullOrWhiteSpace(uploadMetadataHeaderValue))
-            {
-                return parser.GetResultForEmptyHeader();
-            }
+            return strategy == MetadataParsingStrategy.AllowEmptyValues
+                ? MetadataParserSpanBased.ParseAndValidate(uploadMetadataHeaderValue)
+                : MetadataParserStringBased.ParseAndValidate(OriginalMetadataParserStringBased.Instance, uploadMetadataHeaderValue);
 
-            var splitMetadataHeader = uploadMetadataHeaderValue.Split(',');
-            var parsedMetadata = new Dictionary<string, Metadata>(splitMetadataHeader.Length);
+#else 
 
-            foreach (var pair in splitMetadataHeader)
-            {
-                var singleItemParseResult = parser.ParseSingleItem(pair, parsedMetadata.Keys);
+            var parser = (IInternalMetadataParser)(strategy == MetadataParsingStrategy.Original ? OriginalMetadataParserStringBased.Instance : AllowEmptyValuesMetadataParserStringBased.Instance);
+            return MetadataParserStringBased.ParseAndValidate(parser, uploadMetadataHeaderValue);
 
-                if (singleItemParseResult.Success)
-                {
-                    var parsedKeyAndValue = singleItemParseResult.Metadata.First();
-                    parsedMetadata.Add(parsedKeyAndValue.Key, parsedKeyAndValue.Value);
-                }
-                else
-                {
-                    return singleItemParseResult;
-                }
-            }
-
-            return MetadataParserResult.FromResult(parsedMetadata);
-        }
-
-        private static IInternalMetadataParser GetParser(MetadataParsingStrategy strategy)
-        {
-            if (strategy == MetadataParsingStrategy.Original)
-            {
-                return new OriginalMetadataParser();
-            }
-
-            return new AllowEmptyValuesMetadataParser();
+#endif
         }
     }
 }

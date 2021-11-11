@@ -12,8 +12,6 @@ namespace AspNetCore_netcoreapp3._1_TestApp.Services
 {
     public class ExpiredFilesCleanupService : IHostedService, IDisposable
     {
-        private readonly ITusExpirationStore _expirationStore;
-        private readonly ExpirationBase _expiration;
         private readonly ILogger<ExpiredFilesCleanupService> _logger;
         private readonly ITusStorageClientProvider _storageClientProvider;
         private Timer _timer;

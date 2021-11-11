@@ -3,15 +3,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Models.Concatenation;
+using tusdotnet.Stores;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
 {
     internal sealed class UploadConcatForConcatenateFiles : StorageRequirement
     {
-        private readonly Models.Concatenation.UploadConcat _uploadConcat;
+        private readonly UploadConcat _uploadConcat;
         private readonly long _maxUploadSize;
 
-        public UploadConcatForConcatenateFiles(Models.Concatenation.UploadConcat uploadConcat, long maxUploadSize)
+        public UploadConcatForConcatenateFiles(UploadConcat uploadConcat, long maxUploadSize)
         {
             _uploadConcat = uploadConcat;
             _maxUploadSize = maxUploadSize;

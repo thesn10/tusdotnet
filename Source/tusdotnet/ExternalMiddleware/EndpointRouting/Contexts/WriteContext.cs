@@ -17,6 +17,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public Func<Checksum> GetChecksumProvidedByClient { get; set; }
 
         public Stream RequestStream { get; set; }
+#if pipelines
+        public System.IO.Pipelines.PipeReader RequestReader { get; set; }
+#endif
 
         public bool IsPartialFile { get; set; }
     }

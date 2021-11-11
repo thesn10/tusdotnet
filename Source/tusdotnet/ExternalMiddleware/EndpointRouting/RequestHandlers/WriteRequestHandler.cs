@@ -55,8 +55,18 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal override async Task<IActionResult> Invoke()
         {
-            if (!await _controller.AuthorizeForAction(nameof(_controller.Write)))
-                return new ForbidResult();
+            var authorizeContext = new AuthorizeContext()
+            {
+                IntentType = IntentType.GetFileInfo,
+                ControllerMethod = ((Func<WriteContext, Task<IWriteResult>>)_controller.Write).Method,
+            };
+
+            var authorizeResult = await _controller.Authorize(authorizeContext);
+
+            if (!authorizeResult.IsSuccessResult)
+            {
+                return authorizeResult.Translate();
+            }
 
             SetTusResumableHeader();
 
@@ -84,6 +94,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 // Callback to later support trailing checksum headers
                 GetChecksumProvidedByClient = () => GetChecksumFromContext(_context),
                 RequestStream = _context.Request.Body,
+                RequestReader = _context.Request.BodyReader,
                 UploadOffset = uploadOffset,
                 UploadLength = uploadLength
             };
@@ -101,10 +112,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 };
             }
 
-            if (writeResult is TusBadRequest fail) return new BadRequestObjectResult(fail.Message);
-            if (writeResult is TusForbidden) return new ForbidResult();
+            if (writeResult is TusBadRequestResult fail) return fail.Translate();
+            if (writeResult is TusForbiddenResult forbid) return forbid.Translate();
 
-            var writeOk = writeResult as TusWriteOk;
+            var writeOk = writeResult as TusWriteStatusResult;
             if (writeOk == null)
             {
                 throw new InvalidOperationException($"Unknown action result: {writeResult.GetType().FullName}");

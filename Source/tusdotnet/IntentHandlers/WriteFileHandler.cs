@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Adapters;
@@ -10,6 +11,10 @@ using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
 using tusdotnet.Validation;
 using tusdotnet.Validation.Requirements;
+
+#if trailingheaders
+using tusdotnet.Extensions.Internal;
+#endif
 
 namespace tusdotnet.IntentHandlers
 {
@@ -42,22 +47,15 @@ namespace tusdotnet.IntentHandlers
     {
         internal override Requirement[] Requires => GetListOfRequirements();
 
-        private readonly Checksum _checksum;
-
         private readonly ExpirationHelper _expirationHelper;
+        private readonly ChecksumHelper _checksumHelper;
         private readonly bool _initiatedFromCreationWithUpload;
 
         public WriteFileHandler(ContextAdapter context, bool initiatedFromCreationWithUpload)
             : base(context, IntentType.WriteFile, LockType.RequiresLock)
         {
-            var checksumHeader = Request.GetHeader(HeaderConstants.UploadChecksum);
-
-            if (checksumHeader != null)
-            {
-                _checksum = new Checksum(checksumHeader);
-            }
-
-            _expirationHelper = new ExpirationHelper(context.Configuration.Store as ITusExpirationStore, 
+            _checksumHelper = new ChecksumHelper(Context);
+            _expirationHelper = new ExpirationHelper(context.Configuration.Store as ITusExpirationStore,
                 context.Configuration.Expiration, context.Configuration.GetSystemTime);
             _initiatedFromCreationWithUpload = initiatedFromCreationWithUpload;
         }
@@ -66,20 +64,30 @@ namespace tusdotnet.IntentHandlers
         {
             await WriteUploadLengthIfDefered();
 
-            var guardedStream = new ClientDisconnectGuardedReadOnlyStream(Request.Body, CancellationTokenSource.CreateLinkedTokenSource(CancellationToken));
-            var bytesWritten = await Store.AppendDataAsync(Request.FileId, guardedStream, guardedStream.CancellationToken);
+#if pipelines
+
+            var writeTuple = await HandlePipelineWrite();
+
+#else
+            var writeTuple = await HandleStreamWrite();
+#endif
+
+            var bytesWritten = writeTuple.Item1;
+            var cancellationToken = writeTuple.Item2;
 
             var expires = _expirationHelper.IsSlidingExpiration
-                ? await _expirationHelper.SetExpirationIfSupported(Request.FileId, CancellationToken)
-                : await _expirationHelper.GetExpirationIfSupported(Request.FileId, CancellationToken);
+                ? await _expirationHelper.SetExpirationIfSupported(Request.FileId, cancellationToken)
+                : await _expirationHelper.GetExpirationIfSupported(Request.FileId, cancellationToken);
 
-            if (!await MatchChecksum())
+            var matchChecksumResult = await _checksumHelper.MatchChecksum(cancellationToken.IsCancellationRequested);
+
+            if (matchChecksumResult.IsFailure())
             {
-                await Response.Error((HttpStatusCode)460, "Header Upload-Checksum does not match the checksum of the file");
+                await Response.Error(matchChecksumResult.Status, matchChecksumResult.ErrorMessage);
                 return;
             }
 
-            if (guardedStream.CancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
@@ -105,6 +113,37 @@ namespace tusdotnet.IntentHandlers
             }
         }
 
+#if pipelines
+
+        private async Task<Tuple<long, CancellationToken>> HandlePipelineWrite()
+        {
+            long bytesWritten;
+            CancellationToken cancellationToken;
+            if (Context.Configuration.UsePipelinesIfAvailable && Store is ITusPipelineStore pipelineStore)
+            {
+                var guardedPipeReader = new ClientDisconnectGuardedPipeReader(Request.BodyReader, CancellationToken);
+                bytesWritten = await pipelineStore.AppendDataAsync(Request.FileId, guardedPipeReader, CancellationToken);
+                cancellationToken = CancellationToken;
+
+                return new Tuple<long, CancellationToken>(bytesWritten, cancellationToken);
+            }
+            else
+            {
+                return await HandleStreamWrite();
+            }
+        }
+
+#endif
+
+        private async Task<Tuple<long, CancellationToken>> HandleStreamWrite()
+        {
+            var guardedStream = new ClientDisconnectGuardedReadOnlyStream(Request.Body, CancellationTokenSource.CreateLinkedTokenSource(CancellationToken));
+            var bytesWritten = await Store.AppendDataAsync(Request.FileId, guardedStream, guardedStream.CancellationToken);
+            var cancellationToken = guardedStream.CancellationToken;
+
+            return new Tuple<long, CancellationToken>(bytesWritten, cancellationToken);
+        }
+
         private Task WriteUploadLengthIfDefered()
         {
             var uploadLenghtHeader = Request.GetHeader(HeaderConstants.UploadLength);
@@ -118,7 +157,7 @@ namespace tusdotnet.IntentHandlers
 
         private Task<bool> IsPartialUpload()
         {
-            if (!(Store is ITusConcatenationStore concatenationStore))
+            if (Store is not ITusConcatenationStore concatenationStore)
             {
                 return Task.FromResult(false);
             }
@@ -139,30 +178,11 @@ namespace tusdotnet.IntentHandlers
             return fileOffset + bytesWritten == fileUploadLength;
         }
 
-        private Task<bool> MatchChecksum()
-        {
-            if (!(Store is ITusChecksumStore checksumStore))
-            {
-                return Task.FromResult(true);
-            }
-
-            if (_checksum == null)
-            {
-                return Task.FromResult(true);
-            }
-
-            return checksumStore.VerifyChecksumAsync(
-                Request.FileId,
-                _checksum.Algorithm,
-                _checksum.Hash,
-                CancellationToken);
-        }
-
         private Requirement[] GetListOfRequirements()
         {
             var contentTypeRequirement = new ContentType();
             var uploadLengthRequirement = new UploadLengthForWriteFile();
-            var uploadChecksumRequirement = new UploadChecksum(_checksum);
+            var uploadChecksumRequirement = new UploadChecksum(_checksumHelper);
             var fileHasExpired = new FileHasNotExpired();
 
             // Initiated using creation-with-upload meaning that we can guarantee that the file already exist, the offset is correct etc.

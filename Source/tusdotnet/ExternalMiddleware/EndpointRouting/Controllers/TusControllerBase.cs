@@ -68,7 +68,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             }, HttpContext.RequestAborted);
 
-            return CreateOk(createResult);
+            return CreateStatus(createResult);
         }
 
         public virtual async Task<IWriteResult> Write(WriteContext context)
@@ -76,29 +76,32 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             var writeResult = await StorageClient.Write(context, new WriteOptions()
             {
                 Expiration = this.GetType().GetCustomAttribute<TusFileExpirationAttribute>()?.Expiration,
+#if pipelines
+                UsePipelinesIfAvailable = this.GetType().GetCustomAttribute<TusUsePipelineWriteAttribute>()?.UsePipelines ?? false,
+#endif
 
             }, HttpContext.RequestAborted);
 
-            return WriteOk(writeResult);
+            return WriteStatus(writeResult);
         }
 
-        public virtual async Task<IDeleteResult> Delete(DeleteContext context)
+        public virtual async Task<ISimpleResult> Delete(DeleteContext context)
         {
             await StorageClient.Delete(context, HttpContext.RequestAborted);
 
-            return DeleteOk();
+            return Ok();
         }
 
-        public virtual async Task<IInfoResult> GetFileInfo(GetFileInfoContext context)
+        public virtual async Task<IFileInfoResult> GetFileInfo(GetFileInfoContext context)
         {
             var info = await StorageClient.GetFileInfo(context, HttpContext.RequestAborted);
 
-            return FileInfoOk(info);
+            return FileInfo(info);
         }
 
-        public virtual async Task<ICompletedResult> FileCompleted(FileCompletedContext context)
+        public virtual async Task<ISimpleResult> FileCompleted(FileCompletedContext context)
         {
-            return FileCompletedOk();
+            return Ok();
         }
 
         /// <summary>
@@ -123,46 +126,46 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         // TODO
         // public virtual Task Concatenate()
 
-        public virtual async Task<bool> AuthorizeForAction(string actionName)
+        public virtual async Task<ISimpleResult> Authorize(AuthorizeContext context)
         {
             var authService = HttpContext.RequestServices.GetService<IAuthorizationService>();
             if (authService != null)
             {
-                var authorizeAttribute = GetType().GetMethod(actionName).GetCustomAttributes(false).OfType<AuthorizeAttribute>().FirstOrDefault();
+                var authorizeAttribute = context.ControllerMethod.GetCustomAttribute<AuthorizeAttribute>();
 
                 if (authorizeAttribute != default)
                 {
                     var authResult = await authService.AuthorizeAsync(User, authorizeAttribute.Policy);
-                    return authResult.Succeeded;
+
+                    if (authResult.Succeeded)
+                    {
+                        return Ok();
+                    }
+                    else return Forbidden();
                 }
             }
 
-            return true;
+            return Ok();
         }
 
-        protected ICreateResult CreateOk(CreateResult result) 
-            => new TusCreateOk(result);
-        protected ICreateResult CreateOk(string fileId, DateTimeOffset? expires = null) 
-            => new TusCreateOk(fileId, expires);
+        protected ICreateResult CreateStatus(CreateResult result) 
+            => new TusCreateStatusResult(result);
+        protected ICreateResult CreateStatus(string fileId, DateTimeOffset? expires = null) 
+            => new TusCreateStatusResult(fileId, expires);
 
-        protected IWriteResult WriteOk(WriteResult result) => new TusWriteOk(result);
-        protected IWriteResult WriteOk(bool isComplete, long uploadOffset, bool clientDisconnectedDuringRead, bool? checksumMatches = null, DateTimeOffset? fileExpires = null) => 
-            new TusWriteOk(isComplete, uploadOffset, clientDisconnectedDuringRead, checksumMatches, fileExpires);
+        protected IWriteResult WriteStatus(WriteResult result) => new TusWriteStatusResult(result);
+        protected IWriteResult WriteStatus(bool isComplete, long uploadOffset, bool clientDisconnectedDuringRead, bool? checksumMatches = null, DateTimeOffset? fileExpires = null) => 
+            new TusWriteStatusResult(isComplete, uploadOffset, clientDisconnectedDuringRead, checksumMatches, fileExpires);
 
-        protected IDeleteResult DeleteOk() => new TusDeleteOk();
+        protected IFileInfoResult FileInfo(GetFileInfoResult result)
+            => new TusFileInfoResult(result.UploadMetadata, result.UploadLength, result.UploadOffset, result.UploadConcat);
+        protected IFileInfoResult FileInfo(string uploadMetadata, long? uploadLength, long uploadOffset, FileConcat? uploadConcat = null)
+            => new TusFileInfoResult(uploadMetadata, uploadLength, uploadOffset, uploadConcat);
 
-        protected IInfoResult FileInfoOk(GetFileInfoResult result)
-            => new TusInfoOk(result.UploadMetadata, result.UploadLength, result.UploadOffset, result.UploadConcat);
-        protected IInfoResult FileInfoOk(string uploadMetadata, long? uploadLength, long uploadOffset, FileConcat? uploadConcat = null)
-            => new TusInfoOk(uploadMetadata, uploadLength, uploadOffset, uploadConcat);
-
-        protected TusBadRequest BadRequest() => new TusBadRequest();
-        protected TusBadRequest BadRequest(string error) => new TusBadRequest(error);
-        protected TusForbidden Forbidden() => new TusForbidden();
-
-
-        // needed?
-        protected ICompletedResult FileCompletedOk() => new TusCompletedOk();
+        protected TusOkResult Ok() => new TusOkResult();
+        protected TusBadRequestResult BadRequest() => new TusBadRequestResult();
+        protected TusBadRequestResult BadRequest(string error) => new TusBadRequestResult(error);
+        protected TusForbiddenResult Forbidden() => new TusForbiddenResult();
 
     }
 }

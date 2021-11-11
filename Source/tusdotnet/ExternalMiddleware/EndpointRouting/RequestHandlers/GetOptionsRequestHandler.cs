@@ -1,9 +1,11 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
+using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -29,6 +31,19 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal override async Task<IActionResult> Invoke()
         {
+            var authorizeContext = new AuthorizeContext()
+            {
+                IntentType = IntentType.GetOptions,
+                ControllerMethod = ((Func<Task<TusExtensionInfo>>)_controller.GetOptions).Method,
+            };
+
+            var authorizeResult = await _controller.Authorize(authorizeContext);
+
+            if (!authorizeResult.IsSuccessResult)
+            {
+                return authorizeResult.Translate();
+            }
+
             SetTusResumableHeader();
 
             _context.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);

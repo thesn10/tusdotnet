@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using System;
 using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
+using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -29,8 +30,18 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal override async Task<IActionResult> Invoke()
         {
-            if (!await _controller.AuthorizeForAction(nameof(_controller.GetFileInfo)))
-                return new ForbidResult();
+            var authorizeContext = new AuthorizeContext()
+            {
+                IntentType = IntentType.DeleteFile,
+                ControllerMethod = ((Func<DeleteContext, Task<ISimpleResult>>)_controller.Delete).Method,
+            };
+
+            var authorizeResult = await _controller.Authorize(authorizeContext);
+
+            if (!authorizeResult.IsSuccessResult)
+            {
+                return authorizeResult.Translate();
+            }
 
             var fileId = (string)_context.GetRouteValue("TusFileId");
 
@@ -41,7 +52,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 FileId = fileId,
             };
 
-            IDeleteResult deleteResult;
+            ISimpleResult deleteResult;
             try
             {
                 deleteResult = await _controller.Delete(deleteContext);
@@ -54,11 +65,11 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 };
             }
 
-            if (deleteResult is TusBadRequest fail) return new BadRequestObjectResult(fail.Message);
-            if (deleteResult is TusForbidden) return new ForbidResult();
+            if (deleteResult is TusBadRequestResult fail) return fail.Translate();
+            if (deleteResult is TusForbiddenResult forbid) return forbid.Translate();
             
 
-            var deleteOk = deleteResult as TusDeleteOk;
+            var deleteOk = deleteResult as TusOkResult;
 
             if (deleteOk == null)
             {

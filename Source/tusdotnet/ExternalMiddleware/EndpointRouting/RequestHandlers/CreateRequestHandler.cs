@@ -55,8 +55,18 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal override async Task<IActionResult> Invoke()
         {
-            if (!await _controller.AuthorizeForAction(nameof(_controller.Create)))
-                return new ForbidResult();
+            var authorizeContext = new AuthorizeContext()
+            {
+                IntentType = IntentType.CreateFile,
+                ControllerMethod = ((Func<CreateContext, Task<ICreateResult>>)_controller.Create).Method,
+            };
+
+            var authorizeResult = await _controller.Authorize(authorizeContext);
+
+            if (!authorizeResult.IsSuccessResult)
+            {
+                return authorizeResult.Translate();
+            }
 
             var metadata = _context.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
 
@@ -90,10 +100,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 };
             }
 
-            if (createResult is TusBadRequest fail) return new BadRequestObjectResult(fail.Message);
-            if (createResult is TusForbidden) return new ForbidResult();
+            if (createResult is TusBadRequestResult fail) return fail.Translate();
+            if (createResult is TusForbiddenResult forbid) return forbid.Translate();
 
-            var createOk = createResult as TusCreateOk;
+            var createOk = createResult as TusCreateStatusResult;
 
             if (createOk == null)
             {
@@ -107,7 +117,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 SetTusResumableHeader();
                 var completedResult = await _controller.FileCompleted(new() { FileId = createOk.FileId });
 
-                if (completedResult is TusBadRequest completeFail)
+                if (completedResult is TusBadRequestResult completeFail)
                     return new BadRequestObjectResult(completeFail.Message);
 
                 var createdResult = new CreatedResult($"{_context.Request.GetDisplayUrl().TrimEnd('/')}/{createOk.FileId}", null);

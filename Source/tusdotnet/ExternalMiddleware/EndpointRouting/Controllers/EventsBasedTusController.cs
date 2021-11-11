@@ -47,7 +47,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 ctx.UploadLength = context.UploadLength;
             });
 
-            return CreateOk(createResult);
+            return CreateStatus(createResult);
         }
 
         public override async Task<IWriteResult> Write(WriteContext context)
@@ -57,26 +57,29 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             var writeResult = await StorageClient.Write(context, new WriteOptions()
             {
                 Expiration = Options.Expiration,
+#if pipelines
+                UsePipelinesIfAvailable = Options.UsePipelinesIfAvailable,
+#endif
 
             }, HttpContext.RequestAborted);
 
-            return WriteOk(writeResult);
+            return WriteStatus(writeResult);
         }
 
-        public override async Task<ICompletedResult> FileCompleted(FileCompletedContext context)
+        public override async Task<ISimpleResult> FileCompleted(FileCompletedContext context)
         {
             await EventHelper.NotifyFileComplete(GetContext());
 
-            return await base.FileCompleted(context);
+            return Ok();
         }
 
-        public override async Task<IInfoResult> GetFileInfo(GetFileInfoContext context)
+        public override async Task<IFileInfoResult> GetFileInfo(GetFileInfoContext context)
         {
             this.StorageClient = await StorageClientProvider.Get(Options.StorageProfile);
 
             var info = await StorageClient.GetFileInfo(context);
 
-            return FileInfoOk(info);
+            return FileInfo(info);
         }
 
         private ContextAdapter GetContext()
@@ -89,7 +92,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             });
         }
 
-        public override async Task<IDeleteResult> Delete(DeleteContext context)
+        public override async Task<ISimpleResult> Delete(DeleteContext context)
         {
             var contextAdapter = GetContext();
             if (await EventHelper.Validate<BeforeDeleteContext>(contextAdapter) == ResultType.StopExecution)
@@ -101,32 +104,23 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             await EventHelper.Notify<DeleteCompleteContext>(contextAdapter);
 
-            return DeleteOk();
+            return Ok();
         }
 
-        public override async Task<bool> AuthorizeForAction(string actionName)
+        public override async Task<ISimpleResult> Authorize(AuthorizeContext context)
         {
-            var onAuhorizeResult = await EventHelper.Validate<AuthorizeContext>(GetContext(), ctx =>
+            var onAuhorizeResult = await EventHelper.Validate<Models.Configuration.AuthorizeContext>(GetContext(), ctx =>
             {
-                ctx.Intent = actionName switch
-                {
-                    nameof(Create) => IntentType.CreateFile,
-                    nameof(Write) => IntentType.WriteFile,
-                    nameof(Delete) => IntentType.DeleteFile,
-                    nameof(GetFileInfo) => IntentType.GetFileInfo,
-                    nameof(GetOptions) => IntentType.GetOptions,
-                    // TODO
-                    //nameof(Concatenate) => IntentType.ConcatenateFiles,
-                    _ => IntentType.NotApplicable,
-                };
+                ctx.Intent = context.IntentType;
+                ctx.CancellationToken = HttpContext.RequestAborted;
                 ctx.FileConcatenation = null; //GetFileConcatenationFromIntentHandler(intentHandler);
             });
 
             if (onAuhorizeResult == ResultType.StopExecution)
             {
-                return false;
+                return Forbidden();
             }
-            return true;
+            return Ok();
         }
     }
 }

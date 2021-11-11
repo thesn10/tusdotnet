@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Models;
+using tusdotnet.Stores;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
 {

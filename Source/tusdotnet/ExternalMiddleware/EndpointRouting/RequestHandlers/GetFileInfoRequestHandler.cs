@@ -7,6 +7,7 @@ using System;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
+using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
@@ -47,8 +48,18 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal override async Task<IActionResult> Invoke()
         {
-            if (!await _controller.AuthorizeForAction(nameof(_controller.GetFileInfo)))
-                return new ForbidResult();
+            var authorizeContext = new AuthorizeContext()
+            {
+                IntentType = IntentType.GetFileInfo,
+                ControllerMethod = ((Func<GetFileInfoContext, Task<IFileInfoResult>>)_controller.GetFileInfo).Method,
+            };
+
+            var authorizeResult = await _controller.Authorize(authorizeContext);
+
+            if (!authorizeResult.IsSuccessResult)
+            {
+                return authorizeResult.Translate();
+            }
 
             var fileId = (string)_context.GetRouteValue("TusFileId");
 
@@ -60,7 +71,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 FileId = fileId,
             };
 
-            IInfoResult getInfoResult;
+            IFileInfoResult getInfoResult;
             try
             {
                 getInfoResult = await _controller.GetFileInfo(getInfoContext);
@@ -73,10 +84,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 };
             }
 
-            if (getInfoResult is TusBadRequest fail) return new BadRequestObjectResult(fail.Message);
-            if (getInfoResult is TusForbidden) return new ForbidResult();
+            if (getInfoResult is TusBadRequestResult fail) return fail.Translate();
+            if (getInfoResult is TusForbiddenResult forbid) return forbid.Translate();
 
-            var getInfoOk = getInfoResult as TusInfoOk;
+            var getInfoOk = getInfoResult as TusFileInfoResult;
 
             if (getInfoOk == null)
             {

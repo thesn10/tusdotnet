@@ -56,6 +56,16 @@ namespace tusdotnet.Models
         /// </summary>
         public virtual long? MaxAllowedUploadSizeInBytesLong { get; set; }
 
+#if pipelines
+
+        /// <summary>
+        /// Use the incoming request's PipeReader instead of the stream to read data from the client.
+        /// This is only available on .NET Core 3.1 or later and if the store supports it through the ITusPipelineStore interface.
+        /// </summary>
+        public virtual bool UsePipelinesIfAvailable { get; set; }
+
+#endif
+
         /// <summary>
         /// Set an expiration time where incomplete files can no longer be updated.
         /// This value can either be <c>AbsoluteExpiration</c> or <c>SlidingExpiration</c>.
@@ -70,6 +80,18 @@ namespace tusdotnet.Models
         /// Change to <see cref="MetadataParsingStrategy.Original"/> to use the old format.
         /// </summary>
         public virtual MetadataParsingStrategy MetadataParsingStrategy { get; set; }
+
+        /// <summary>
+        /// Default constructor.
+        /// </summary>
+        public DefaultTusConfiguration()
+        {
+#if pipelines && NET6_0_OR_GREATER
+
+            UsePipelinesIfAvailable = true;
+
+#endif
+        }
 
         /// <summary>
         /// Check that the config is valid. Throws a <exception cref="TusConfigurationException">TusConfigurationException</exception> if the config is invalid.

@@ -29,7 +29,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal abstract Task<IActionResult> Invoke();
 
-
         protected void SetCreateHeaders(DateTimeOffset? expires, long? uploadOffset)
         {
             var result = new Dictionary<string, string>();

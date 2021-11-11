@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Extensions;
+using tusdotnet.Helpers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
@@ -16,8 +17,11 @@ namespace tusdotnet.Stores
     /// <summary>
     /// The built in data store that save files on disk.
     /// </summary>
-    public class TusDiskStore :
+    public partial class TusDiskStore :
         ITusStore,
+#if pipelines
+        ITusPipelineStore,
+#endif
         ITusCreationStore,
         ITusReadableStore,
         ITusTerminationStore,
@@ -38,7 +42,7 @@ namespace tusdotnet.Stores
         // Use our own array pool to not leak data to other parts of the running app.
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Create();
 
-        private static readonly TusGuidProvider DefaultFileIdProvider = new TusGuidProvider();
+        private static readonly GuidFileIdProvider DefaultFileIdProvider = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TusDiskStore"/> class.
@@ -77,7 +81,7 @@ namespace tusdotnet.Stores
         /// <param name="directoryPath">The path on disk where to save files</param>
         /// <param name="deletePartialFilesOnConcat">True to delete partial files if a final concatenation is performed</param>
         /// <param name="bufferSize">The buffer size to use when reading and writing. If unsure use <see cref="TusDiskBufferSize.Default"/>.</param>
-        /// <param name="fileIdProvider">The provider that generates ids for files. If unsure use <see cref="TusGuidProvider"/>.</param>
+        /// <param name="fileIdProvider">The provider that generates ids for files. If unsure use <see cref="GuidFileIdProvider"/>.</param>
         public TusDiskStore(string directoryPath, bool deletePartialFilesOnConcat, TusDiskBufferSize bufferSize, ITusFileIdProvider fileIdProvider)
         {
             _directoryPath = directoryPath;
@@ -91,86 +95,6 @@ namespace tusdotnet.Stores
             _maxReadBufferSize = bufferSize.ReadBufferSizeInBytes;
 
             _fileIdProvider = fileIdProvider;
-        }
-
-        /// <inheritdoc />
-        public async Task<long> AppendDataAsync(string fileId, Stream stream, CancellationToken cancellationToken)
-        {
-            var internalFileId = await InternalFileId.Parse(_fileIdProvider, fileId);
-
-            var httpReadBuffer = _bufferPool.Rent(_maxReadBufferSize);
-            var fileWriteBuffer = _bufferPool.Rent(Math.Max(_maxWriteBufferSize, _maxReadBufferSize));
-
-            try
-            {
-                var fileUploadLengthProvidedDuringCreate = await GetUploadLengthAsync(fileId, cancellationToken);
-                using var diskFileStream = _fileRepFactory.Data(internalFileId).GetStream(FileMode.Append, FileAccess.Write, FileShare.None);
-
-                var totalDiskFileLength = diskFileStream.Length;
-                if (fileUploadLengthProvidedDuringCreate == totalDiskFileLength)
-                {
-                    return 0;
-                }
-
-                var chunkCompleteFile = InitializeChunk(internalFileId, totalDiskFileLength);
-
-                int numberOfbytesReadFromClient;
-                var bytesWrittenThisRequest = 0L;
-                var clientDisconnectedDuringRead = false;
-                var writeBufferNextFreeIndex = 0;
-
-                do
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    numberOfbytesReadFromClient = await stream.ReadAsync(httpReadBuffer, 0, _maxReadBufferSize, cancellationToken);
-                    clientDisconnectedDuringRead = cancellationToken.IsCancellationRequested;
-
-                    totalDiskFileLength += numberOfbytesReadFromClient;
-
-                    if (totalDiskFileLength > fileUploadLengthProvidedDuringCreate)
-                    {
-                        throw new TusStoreException($"Stream contains more data than the file's upload length. Stream data: {totalDiskFileLength}, upload length: {fileUploadLengthProvidedDuringCreate}.");
-                    }
-
-                    // Can we fit the read data into the write buffer? If not flush it now.
-                    if (writeBufferNextFreeIndex + numberOfbytesReadFromClient > _maxWriteBufferSize)
-                    {
-                        await FlushFileToDisk(fileWriteBuffer, diskFileStream, writeBufferNextFreeIndex);
-                        writeBufferNextFreeIndex = 0;
-                    }
-
-                    Array.Copy(
-                        sourceArray: httpReadBuffer,
-                        sourceIndex: 0,
-                        destinationArray: fileWriteBuffer,
-                        destinationIndex: writeBufferNextFreeIndex,
-                        length: numberOfbytesReadFromClient);
-
-                    writeBufferNextFreeIndex += numberOfbytesReadFromClient;
-                    bytesWrittenThisRequest += numberOfbytesReadFromClient;
-
-                } while (numberOfbytesReadFromClient != 0);
-
-                // Flush the remaining buffer to disk.
-                if (writeBufferNextFreeIndex != 0)
-                    await FlushFileToDisk(fileWriteBuffer, diskFileStream, writeBufferNextFreeIndex);
-
-                if (!clientDisconnectedDuringRead)
-                {
-                    MarkChunkComplete(chunkCompleteFile);
-                }
-
-                return bytesWrittenThisRequest;
-            }
-            finally
-            {
-                _bufferPool.Return(httpReadBuffer);
-                _bufferPool.Return(fileWriteBuffer);
-            }
         }
 
         /// <inheritdoc />
@@ -260,7 +184,8 @@ namespace tusdotnet.Stores
 
                 // Only verify the checksum if the entire lastest chunk has been written.
                 // If not, just discard the last chunk as it won't match the checksum anyway.
-                if (chunkCompleteFile.Exist())
+                // If the client has provided a faulty checksum-trailer we should also just discard the chunk.
+                if (chunkCompleteFile.Exist() && !ChecksumTrailerHelper.IsFallback(algorithm, checksum))
                 {
                     var calculateSha1 = dataStream.CalculateSha1(chunkStartPosition);
                     valid = checksum.SequenceEqual(calculateSha1);
@@ -351,7 +276,7 @@ namespace tusdotnet.Stores
         /// <inheritdoc />
         public async Task<IEnumerable<string>> GetExpiredFilesAsync(CancellationToken _)
         {
-            List<string> expiredFiles = new List<string>();
+            var expiredFiles = new List<string>();
             foreach (var file in Directory.EnumerateFiles(_directoryPath, "*.expiration"))
             {
                 var f = await InternalFileId.Parse(_fileIdProvider, Path.GetFileNameWithoutExtension(file));
@@ -419,12 +344,6 @@ namespace tusdotnet.Stores
         private void MarkChunkComplete(InternalFileRep chunkComplete)
         {
             chunkComplete.Write("1");
-        }
-
-        private static async Task FlushFileToDisk(byte[] fileWriteBuffer, FileStream fileStream, int writeBufferNextFreeIndex)
-        {
-            await fileStream.WriteAsync(fileWriteBuffer, 0, writeBufferNextFreeIndex);
-            await fileStream.FlushAsync();
         }
     }
 }

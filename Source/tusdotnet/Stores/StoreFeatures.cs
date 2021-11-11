@@ -4,6 +4,6 @@
     {
         public bool Readable { get; set; }
 
-        //public bool Pipelines { get; set; }
+        public bool Pipelines { get; set; }
     }
 }

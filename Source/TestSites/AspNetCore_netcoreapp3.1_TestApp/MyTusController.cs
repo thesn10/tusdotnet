@@ -57,7 +57,7 @@ namespace AspNetCore_netcoreapp3._1_TestApp
             return errors;
         }
 
-        public override Task<ICompletedResult> FileCompleted(FileCompletedContext context)
+        public override Task<ISimpleResult> FileCompleted(FileCompletedContext context)
         {
             _logger.LogInformation($"Upload of file {context.FileId} is complete!");
             return base.FileCompleted(context);
@@ -67,17 +67,17 @@ namespace AspNetCore_netcoreapp3._1_TestApp
         {
             _logger.LogInformation($"Started writing file {context.FileId} at offset {context.UploadOffset}");
             var result = await base.Write(context);
-            _logger.LogInformation($"Done writing file {context.FileId}. New offset: {(result as TusWriteOk)?.UploadOffset}");
+            _logger.LogInformation($"Done writing file {context.FileId}. New offset: {(result as TusWriteStatusResult)?.UploadOffset}");
             return result;
         }
 
-        public override Task<IInfoResult> GetFileInfo(GetFileInfoContext context)
+        public override Task<IFileInfoResult> GetFileInfo(GetFileInfoContext context)
         {
             _logger.LogInformation($"Getting file info of file {context.FileId}");
             return base.GetFileInfo(context);
         }
 
-        public override Task<IDeleteResult> Delete(DeleteContext context)
+        public override Task<ISimpleResult> Delete(DeleteContext context)
         {
             _logger.LogInformation($"Deleting file {context.FileId}");
             return base.Delete(context);

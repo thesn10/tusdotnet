@@ -30,6 +30,16 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         public Func<Checksum> GetChecksumProvidedByClient { get; set; } = null;
 
+#if pipelines
+
+        /// <summary>
+        /// Use the incoming request's PipeReader instead of the stream to read data from the client.
+        /// This is only available on .NET Core 3.1 or later and if the store supports it through the ITusPipelineStore interface.
+        /// </summary>
+        public bool UsePipelinesIfAvailable { get; set; }
+
+#endif
+
         private DateTimeOffset? _systemTime;
 
         internal void MockSystemTime(DateTimeOffset systemTime)
