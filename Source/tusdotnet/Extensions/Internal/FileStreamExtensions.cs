@@ -1,4 +1,6 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -47,14 +49,29 @@ namespace tusdotnet.Extensions
 #if pipelines
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static async Task FlushToDisk(this FileStream stream, ReadOnlySequence<byte> buffer)
+        public static async Task WriteToDisk(this FileStream stream, ReadOnlySequence<byte> buffer, long offset, bool flush = false)
         {
+#if net6fileapi
+            if (Environment.OSVersion.Platform == PlatformID.Unix)
+            {
+                List<ReadOnlyMemory<byte>> segmentList = new List<ReadOnlyMemory<byte>>();
+                foreach (var segment in buffer)
+                {
+                    segmentList.Add(segment);
+                }
+
+                // scatter/gather write using pwritev()
+                await RandomAccess.WriteAsync(stream.SafeFileHandle, segmentList, offset);
+                return;
+            }
+#endif
+
             foreach (var segment in buffer)
             {
                 await stream.WriteAsync(segment);
             }
 
-            await stream.FlushAsync();
+            if (flush) await stream.FlushAsync();
         }
 
 #endif

@@ -63,7 +63,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
-    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines</DefineConstants>
+    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines;net6fileapi</DefineConstants>
   </PropertyGroup>
 
   <!-- Package references for .NET Framework -->

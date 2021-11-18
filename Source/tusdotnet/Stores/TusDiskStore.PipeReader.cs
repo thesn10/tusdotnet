@@ -20,8 +20,15 @@ namespace tusdotnet.Stores
 
             var internalFileId = await InternalFileId.Parse(_fileIdProvider, fileId);
 
+#if net6fileapi
+            // we need no buffering on unix because we are directly using scatter/gather IO
+            int bufferSize = Environment.OSVersion.Platform != PlatformID.Unix ? JUST_BELOW_LOH_BYTE_LIMIT : 0;
+#else
+            int bufferSize = JUST_BELOW_LOH_BYTE_LIMIT;
+#endif
+
             var fileUploadLengthProvidedDuringCreate = await GetUploadLengthAsync(fileId, cancellationToken);
-            using var diskFileStream = _fileRepFactory.Data(internalFileId).GetStream(FileMode.Append, FileAccess.Write, FileShare.None, bufferSize: JUST_BELOW_LOH_BYTE_LIMIT);
+            using var diskFileStream = _fileRepFactory.Data(internalFileId).GetStream(FileMode.Append, FileAccess.Write, FileShare.None, bufferSize: bufferSize);
 
             var fileSizeOnDisk = diskFileStream.Length;
             if (fileUploadLengthProvidedDuringCreate == fileSizeOnDisk)
@@ -45,7 +52,7 @@ namespace tusdotnet.Stores
 
                     if (result.Buffer.Length >= _maxWriteBufferSize)
                     {
-                        await diskFileStream.FlushToDisk(result.Buffer);
+                        await diskFileStream.WriteToDisk(result.Buffer, fileSizeOnDisk, false);
 
                         bytesWrittenThisRequest += result.Buffer.Length;
                         fileSizeOnDisk += result.Buffer.Length;
@@ -68,8 +75,9 @@ namespace tusdotnet.Stores
                     AssertNotToMuchData(fileSizeOnDisk, result.Buffer.Length, fileUploadLengthProvidedDuringCreate);
 
                     bytesWrittenThisRequest += result.Buffer.Length;
-                    await diskFileStream.FlushToDisk(result.Buffer);
+                    await diskFileStream.WriteToDisk(result.Buffer, fileSizeOnDisk, true);
                 }
+                else await diskFileStream.FlushAsync();
 
                 await reader.CompleteAsync();
             }

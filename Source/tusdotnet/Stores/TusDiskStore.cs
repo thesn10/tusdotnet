@@ -122,7 +122,16 @@ namespace tusdotnet.Stores
         public async Task<string> CreateFileAsync(long uploadLength, string metadata, CancellationToken cancellationToken)
         {
             var fileId = await InternalFileId.CreateNew(_fileIdProvider, metadata);
+#if net6fileapi
+            new FileStream(_fileRepFactory.Data(fileId).Path, new FileStreamOptions()
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                PreallocationSize = uploadLength > 0 ? uploadLength : 0,
+            }).Dispose();
+#else
             new FileStream(_fileRepFactory.Data(fileId).Path, FileMode.CreateNew).Dispose();
+#endif
             if (uploadLength != -1)
             {
                 await SetUploadLengthAsync(fileId, uploadLength, cancellationToken);
