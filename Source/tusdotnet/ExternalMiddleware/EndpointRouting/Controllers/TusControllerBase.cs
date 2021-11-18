@@ -123,9 +123,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return extensionInfo;
         }
 
-        // TODO
-        // public virtual Task Concatenate()
-
         public virtual async Task<ISimpleResult> Authorize(AuthorizeContext context)
         {
             var authService = HttpContext.RequestServices.GetService<IAuthorizationService>();

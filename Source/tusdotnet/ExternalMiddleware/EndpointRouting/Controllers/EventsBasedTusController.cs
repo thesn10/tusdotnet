@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
 using tusdotnet.Adapters;
 using tusdotnet.ExternalMiddleware.Core;
+using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
 using tusdotnet.Helpers;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
@@ -26,6 +27,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             {
                 ctx.Metadata = context.Metadata;
                 ctx.UploadLength = context.UploadLength;
+                ctx.FileConcatenation = context.FileConcat;
             });
 
             if (onBeforeCreateResult == ResultType.StopExecution)
@@ -42,7 +44,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             await EventHelper.Notify<CreateCompleteContext>(GetContext(), ctx =>
             {
                 ctx.FileId = createResult.FileId;
-                ctx.FileConcatenation = null;
+                ctx.FileConcatenation = context.FileConcat;
                 ctx.Metadata = context.Metadata;
                 ctx.UploadLength = context.UploadLength;
             });
@@ -112,8 +114,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             var onAuhorizeResult = await EventHelper.Validate<Models.Configuration.AuthorizeContext>(GetContext(), ctx =>
             {
                 ctx.Intent = context.IntentType;
-                ctx.CancellationToken = HttpContext.RequestAborted;
-                ctx.FileConcatenation = null; //GetFileConcatenationFromIntentHandler(intentHandler);
+                ctx.FileConcatenation = (context.RequestHandler as ConcatenateRequestHandler)?.UploadConcat.Type;
             });
 
             if (onAuhorizeResult == ResultType.StopExecution)

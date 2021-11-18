@@ -1,5 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
+using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
+using tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage;
 using tusdotnet.Stores;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
@@ -10,14 +12,28 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
         {
         }
 
-        internal async Task<CreateResult> Create(long uploadLength, string uploadMetadata,
+        internal async Task<CreateResult> Create(long uploadLength, string uploadMetadata, bool isPartial = false, string[] partialFiles = null,
                     CreateOptions options = default, CancellationToken cancellationToken = default)
         {
             options ??= new CreateOptions();
 
             var createResult = new CreateResult();
 
-            createResult.FileId = await _storeAdapter.CreateFileAsync(uploadLength, uploadMetadata, cancellationToken);
+            if (_storeAdapter.Extensions.Concatenation && isPartial)
+            {
+                createResult.FileId = await _storeAdapter.CreatePartialFileAsync(uploadLength, uploadMetadata, cancellationToken);
+            }
+            else if (_storeAdapter.Extensions.Concatenation && partialFiles != null)
+            {
+                var validator = new StorageValidator(new FinalFileConcatValid(partialFiles));
+                await validator.Validate(_storeAdapter, cancellationToken);
+
+                createResult.FileId = await _storeAdapter.CreateFinalFileAsync(partialFiles, uploadMetadata, cancellationToken);
+            }
+            else
+            {
+                createResult.FileId = await _storeAdapter.CreateFileAsync(uploadLength, uploadMetadata, cancellationToken);
+            }
 
             if (_storeAdapter.Extensions.Expiration && options.Expiration != null && uploadLength != 0)
             {

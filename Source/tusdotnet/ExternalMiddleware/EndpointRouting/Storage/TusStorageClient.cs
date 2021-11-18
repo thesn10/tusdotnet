@@ -7,6 +7,7 @@ using tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Stores;
+using tusdotnet.Models.Concatenation;
 
 #if pipelines
 using System.IO.Pipelines;
@@ -35,14 +36,27 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// Creates a new file
         /// </summary>
         /// <exception cref="TusStoreException"></exception>
-        public Task<CreateResult> Create(long uploadLength, string uploadMetadata, 
+        public Task<CreateResult> Create(long uploadLength, string uploadMetadata, bool isPartialFile = false,
             CreateOptions options = default, CancellationToken cancellationToken = default)
         {
             options ??= new CreateOptions();
 
             var createOp = new CreateOperationHandler(_storeAdapter);
 
-            return createOp.Create(uploadLength, uploadMetadata, options, cancellationToken);
+            return createOp.Create(uploadLength, uploadMetadata, isPartialFile, null, options, cancellationToken);
+        }
+
+        /// <summary>
+        /// Creates a file from multiple partial files
+        /// </summary>
+        public Task<CreateResult> Create(string[] partialFiles, string uploadMetadata,
+            CreateOptions options = default, CancellationToken cancellationToken = default)
+        {
+            options ??= new CreateOptions();
+
+            var createOp = new CreateOperationHandler(_storeAdapter);
+
+            return createOp.Create(0, uploadMetadata, false, partialFiles, options, cancellationToken);
         }
 
         /// <summary>
@@ -136,10 +150,21 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return extensionInfo;
         }
 
-        /// <inheritdoc cref="Create(long, string, CreateOptions, CancellationToken)"/>
+        /// <inheritdoc cref="Create(long, string, bool, CreateOptions, CancellationToken)"/>
         public Task<CreateResult> Create(CreateContext context, CreateOptions options = default, CancellationToken cancellationToken = default)
         {
-            return Create(context.UploadLength, context.UploadMetadata, options, cancellationToken);
+            if (context.FileConcat is FileConcatPartial)
+            {
+                return Create(context.UploadLength, context.UploadMetadata, true, options, cancellationToken);
+            }
+            else if (context.FileConcat is FileConcatFinal final)
+            {
+                return Create(final.Files, context.UploadMetadata, options, cancellationToken);
+            }
+            else 
+            { 
+                return Create(context.UploadLength, context.UploadMetadata, false, options, cancellationToken); 
+            }
         }
 
         /// <inheritdoc cref="Write(string, Stream, long, long?, WriteOptions, CancellationToken)"/>

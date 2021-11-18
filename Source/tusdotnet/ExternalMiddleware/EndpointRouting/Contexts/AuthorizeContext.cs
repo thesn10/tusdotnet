@@ -1,6 +1,5 @@
-﻿#if endpointrouting
-
-using System.Reflection;
+﻿using System.Reflection;
+using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
 using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
@@ -9,7 +8,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     {
         public IntentType IntentType { get; set; }
         public MethodInfo ControllerMethod { get; set; }
+        internal RequestHandler RequestHandler { get; set; }
     }
 }
-
-#endif

@@ -85,6 +85,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 UploadMetadata = metadata,
                 Metadata = _metadataFromRequirement,
                 UploadLength = uploadLength,
+                FileConcat = null,
             };
 
             ICreateResult createResult;
