@@ -68,6 +68,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                     return new GetFileInfoRequestHandler(context, controller, extensionInfo, options);
                 case IntentType.GetOptions:
                     return new GetOptionsRequestHandler(context, controller, extensionInfo, options);
+                case IntentType.ConcatenateFiles:
+                    return new ConcatenateRequestHandler(context, controller, extensionInfo, options);
                 default:
                     return null;
             }
