@@ -1,11 +1,8 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using System;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
-using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -18,54 +15,38 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
     internal class GetOptionsRequestHandler : RequestHandler
     {
-        internal override RequestRequirement[] Requires => new RequestRequirement[]
+        private readonly string _fileId;
+
+        internal override RequestRequirement[] Requires => new RequestRequirement[] { };
+
+        internal GetOptionsRequestHandler(TusContext context, TusControllerBase controller, string fileId)
+            : base(context, controller)
         {
-
-        };
-
-        internal GetOptionsRequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
-            : base(context, controller, extensionInfo, options)
-        {
-
+            _fileId = fileId;
         }
 
-        internal override async Task<IActionResult> Invoke()
+        internal override async Task<ITusActionResult> Invoke()
         {
-            var authorizeContext = new AuthorizeContext()
-            {
-                IntentType = IntentType.GetOptions,
-                ControllerMethod = ((Func<Task<TusExtensionInfo>>)_controller.GetOptions).Method,
-            };
+            HttpContext.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);
 
-            var authorizeResult = await _controller.Authorize(authorizeContext);
-
-            if (!authorizeResult.IsSuccessResult)
-            {
-                return authorizeResult.Translate();
-            }
-
-            SetTusResumableHeader();
-
-            _context.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);
-
-            var maximumAllowedSize = _options.MaxAllowedUploadSizeInBytes;
+            var maximumAllowedSize = Options.MaxAllowedUploadSizeInBytes;
 
             if (maximumAllowedSize.HasValue)
             {
-                _context.Response.Headers.Add(HeaderConstants.TusMaxSize, maximumAllowedSize.Value.ToString());
+                HttpContext.Response.Headers.Add(HeaderConstants.TusMaxSize, maximumAllowedSize.Value.ToString());
             }
 
-            if (_extensionInfo.SupportedExtensions.Any())
+            if (ExtensionInfo.SupportedExtensions.Any())
             {
-                _context.Response.Headers.Add(HeaderConstants.TusExtension, string.Join(",", _extensionInfo.SupportedExtensions.ToList()));
+                HttpContext.Response.Headers.Add(HeaderConstants.TusExtension, string.Join(",", ExtensionInfo.SupportedExtensions.ToList()));
             }
 
-            if (_extensionInfo.SupportedChecksumAlgorithms.Count > 0)
+            if (ExtensionInfo.SupportedChecksumAlgorithms.Count > 0)
             {
-                _context.Response.Headers.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", _extensionInfo.SupportedChecksumAlgorithms));
+                HttpContext.Response.Headers.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", ExtensionInfo.SupportedChecksumAlgorithms));
             }
 
-            return new NoContentResult();
+            return new TusOkResult();
         }
     }
 }

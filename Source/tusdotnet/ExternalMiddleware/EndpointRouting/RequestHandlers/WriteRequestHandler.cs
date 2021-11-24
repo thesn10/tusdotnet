@@ -1,14 +1,13 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
-using System;
 using System.Linq;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
+using tusdotnet.Extensions;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements;
 using tusdotnet.Models;
+using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -42,45 +41,30 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         {
             new ContentType(),
             new UploadOffset(),
+            new UploadChecksumHeader(GetChecksumFromContext(HttpContext, false))
         };
 
         private readonly string _fileId;
 
-        internal WriteRequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options, string fileId = null)
-            : base(context, controller, extensionInfo, options)
+        internal WriteRequestHandler(TusContext context, TusControllerBase controller, string fileId)
+            : base(context, controller)
         {
-            // used on creation-with-upload
             _fileId = fileId;
         }
 
-        internal override async Task<IActionResult> Invoke()
+        internal override async Task<ITusActionResult> Invoke()
         {
-            var authorizeContext = new AuthorizeContext()
-            {
-                IntentType = IntentType.GetFileInfo,
-                ControllerMethod = ((Func<WriteContext, Task<IWriteResult>>)_controller.Write).Method,
-            };
-
-            var authorizeResult = await _controller.Authorize(authorizeContext);
-
-            if (!authorizeResult.IsSuccessResult)
-            {
-                return authorizeResult.Translate();
-            }
-
-            SetTusResumableHeader();
-
             long? uploadLength = null;
-            if (_context.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
+            if (HttpContext.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
             {
                 // creation-defer-length
-                uploadLength = long.Parse(_context.Request.Headers[HeaderConstants.UploadLength].First());
+                uploadLength = long.Parse(HttpContext.Request.Headers[HeaderConstants.UploadLength].First());
             }
 
             long uploadOffset;
-            if (_context.Request.Headers.ContainsKey(HeaderConstants.UploadOffset))
+            if (HttpContext.Request.Headers.ContainsKey(HeaderConstants.UploadOffset))
             {
-                uploadOffset = long.Parse(_context.Request.Headers[HeaderConstants.UploadOffset].First());
+                uploadOffset = long.Parse(HttpContext.Request.Headers[HeaderConstants.UploadOffset].First());
             }
             else
             {
@@ -90,13 +74,13 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
             var writeContext = new WriteContext
             {
-                FileId = _fileId ?? (string)_context.GetRouteValue("TusFileId"),
+                FileId = _fileId,
                 // Callback to later support trailing checksum headers
-                GetChecksumProvidedByClient = () => GetChecksumFromContext(_context),
-                RequestStream = _context.Request.Body,
-                RequestReader = _context.Request.BodyReader,
+                GetChecksumProvidedByClient = () => Task.FromResult(GetChecksumFromContext(HttpContext)),
+                RequestStream = HttpContext.Request.Body,
+                RequestReader = HttpContext.Request.BodyReader,
                 UploadOffset = uploadOffset,
-                UploadLength = uploadLength
+                UploadLength = uploadLength,
             };
 
             IWriteResult writeResult = null;
@@ -106,41 +90,56 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new ObjectResult(ex.Message)
+                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+            }
+
+            if (writeResult is TusWriteStatusResult writeOk)
+            {
+                var isEmptyFile = writeContext.UploadLength == 0;
+                var isPartialFile = writeOk.FileConcat is FileConcatPartial;
+
+                if (writeOk.IsComplete && !isPartialFile && !isEmptyFile)
                 {
-                    StatusCode = (int)ex.StatusCode
-                };
+                    ISimpleResult completedResult;
+                    try
+                    {
+                        completedResult = await _controller.FileCompleted(new() { FileId = writeContext.FileId });
+                    }
+                    catch (TusException ex)
+                    {
+                        return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                    }
+
+                    if (!completedResult.IsSuccessResult)
+                        return completedResult;
+
+                    return writeOk;
+                }
             }
 
-            if (writeResult is TusBadRequestResult fail) return fail.Translate();
-            if (writeResult is TusForbiddenResult forbid) return forbid.Translate();
-
-            var writeOk = writeResult as TusWriteStatusResult;
-            if (writeOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {writeResult.GetType().FullName}");
-            }
-
-            if (writeOk.ClientDisconnectedDuringRead)
-            {
-                // ?
-                return new BadRequestResult();
-            }
-
-            if (writeOk.IsComplete && !writeContext.IsPartialFile)
-            {
-                await _controller.FileCompleted(new() { FileId = writeContext.FileId });
-            }
-
-            SetCreateHeaders(writeOk.FileExpires, writeOk.UploadOffset);
-            return new NoContentResult();
+            return writeResult;
         }
 
-        private Checksum GetChecksumFromContext(HttpContext context)
+        private Checksum GetChecksumFromContext(HttpContext context, bool canBeTrailing = true)
         {
             var header = context.Request.Headers[HeaderConstants.UploadChecksum].FirstOrDefault();
 
-            return header != null ? new Checksum(header) : null;
+            if (header != null)
+            {
+                return new Checksum(header);
+            }
+
+            if (canBeTrailing && context.Request.HasDeclaredTrailingUploadChecksumHeader())
+            {
+                header = context.Request.GetTrailingUploadChecksumHeader();
+
+                if (header != null)
+                {
+                    return new Checksum(header);
+                }
+            }
+
+            return null;
         }
     }
 }

@@ -49,7 +49,7 @@ namespace tusdotnet.Helpers
             await handler(eventContext);
         }
 
-        private static Func<T, Task> GetHandlerFromEvents<T>(Events events) where T : EventContext<T>, new()
+        internal static Func<T, Task> GetHandlerFromEvents<T>(Events events) where T : EventContext<T>, new()
         {
             if (events == null)
             {

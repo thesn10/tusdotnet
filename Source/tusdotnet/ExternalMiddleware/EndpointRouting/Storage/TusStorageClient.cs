@@ -66,7 +66,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <exception cref="TusFileNotFoundException"></exception>
         /// <exception cref="TusDeferLengthException"></exception>
         /// <exception cref="TusInvalidConcatException"></exception>
-        /// <exception cref="TusUnsupportedChecksumAlgorithmException"></exception>
+        /// <exception cref="TusChecksumException"></exception>
         /// <exception cref="TusFileExpiredException"></exception>
         /// <exception cref="TusInvalidOffsetException"></exception>
         /// <exception cref="TusFileAlreadyCompleteException"></exception>

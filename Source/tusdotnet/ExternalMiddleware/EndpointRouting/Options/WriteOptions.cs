@@ -1,6 +1,7 @@
 ﻿#if endpointrouting
 
 using System;
+using System.Threading.Tasks;
 using tusdotnet.FileLocks;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
@@ -28,7 +29,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         public ITusFileLockProvider FileLockProvider { get; set; } = InMemoryFileLockProvider.Instance;
 
-        public Func<Checksum> GetChecksumProvidedByClient { get; set; } = null;
+        public Func<Task<Checksum>> GetChecksumProvidedByClient { get; set; } = null;
 
 #if pipelines
 

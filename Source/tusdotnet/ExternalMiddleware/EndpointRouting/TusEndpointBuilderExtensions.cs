@@ -22,7 +22,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             //    .UseMiddleware<TusProtocolHandlerEndpointBased<TController>>(options)
             //    .Build();
 
-            var handler = new TusProtocolHandlerEndpointBased<TController>(options);
+            var handler = new TusProtocolHandlerEndpointBased<TController>(options)
+            {
+                UrlPath = pattern
+            };
             return endpoints.Map(pattern + "/{TusFileId?}", handler.Invoke);
         }
 
@@ -35,7 +38,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             config?.Invoke(options);
 
-            var handler = new TusProtocolHandlerEndpointBased<EventsBasedTusController, TusSimpleEndpointOptions>(options, options);
+            var handler = new TusProtocolHandlerEndpointBased<EventsBasedTusController, TusSimpleEndpointOptions>(options, options)
+            {
+                UrlPath = pattern
+            };
             return endpoints.Map(pattern + "/{TusFileId?}", handler.Invoke);
         }
 

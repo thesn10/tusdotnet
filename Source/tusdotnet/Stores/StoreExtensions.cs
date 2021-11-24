@@ -10,6 +10,7 @@ namespace tusdotnet.Stores
         public bool CreationWithUpload { get; set; }
         public bool Expiration { get; set; }
         public bool Checksum { get; set; }
+        public bool ChecksumTrailer { get; set; }
         public bool Concatenation { get; set; }
         public bool CreationDeferLength { get; set; }
         public bool Termination { get; set; }
@@ -34,6 +35,10 @@ namespace tusdotnet.Stores
             {
                 extensionList.Add(ExtensionConstants.Checksum);
             }
+            if (ChecksumTrailer)
+            {
+                extensionList.Add(ExtensionConstants.ChecksumTrailer);
+            }
             if (Concatenation)
             {
                 extensionList.Add(ExtensionConstants.Concatenation);
@@ -52,7 +57,7 @@ namespace tusdotnet.Stores
 
         public bool Any()
         {
-            return Creation || Expiration || Checksum || Concatenation || CreationDeferLength || Termination;
+            return Creation || CreationWithUpload || Expiration || Checksum || ChecksumTrailer || Concatenation || CreationDeferLength || Termination;
         }
 
         public void Disable(string extensionName)
@@ -70,6 +75,9 @@ namespace tusdotnet.Stores
                     break;
                 case ExtensionConstants.Checksum:
                     Checksum = false;
+                    break;
+                case ExtensionConstants.ChecksumTrailer:
+                    ChecksumTrailer = false;
                     break;
                 case ExtensionConstants.Concatenation:
                     Concatenation = false;

@@ -1,14 +1,6 @@
 ﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
-using System;
 using System.Threading.Tasks;
-using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
-using tusdotnet.Models;
-using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -35,101 +27,31 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
     internal class GetFileInfoRequestHandler : RequestHandler
     {
-        internal override RequestRequirement[] Requires => new RequestRequirement[]
+        private readonly string _fileId;
+
+        internal override RequestRequirement[] Requires => new RequestRequirement[] { };
+
+        internal GetFileInfoRequestHandler(TusContext context, TusControllerBase controller, string fileId)
+            : base(context, controller)
         {
-
-        };
-
-        internal GetFileInfoRequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
-            : base(context, controller, extensionInfo, options)
-        {
-
+            _fileId = fileId;
         }
 
-        internal override async Task<IActionResult> Invoke()
+        internal override async Task<ITusActionResult> Invoke()
         {
-            var authorizeContext = new AuthorizeContext()
-            {
-                IntentType = IntentType.GetFileInfo,
-                ControllerMethod = ((Func<GetFileInfoContext, Task<IFileInfoResult>>)_controller.GetFileInfo).Method,
-            };
-
-            var authorizeResult = await _controller.Authorize(authorizeContext);
-
-            if (!authorizeResult.IsSuccessResult)
-            {
-                return authorizeResult.Translate();
-            }
-
-            var fileId = (string)_context.GetRouteValue("TusFileId");
-
-            SetTusResumableHeader();
-            SetCacheNoStoreHeader();
-
             var getInfoContext = new GetFileInfoContext()
             {
-                FileId = fileId,
+                FileId = _fileId,
             };
 
-            IFileInfoResult getInfoResult;
             try
             {
-                getInfoResult = await _controller.GetFileInfo(getInfoContext);
+                return await _controller.GetFileInfo(getInfoContext);
             }
             catch (TusException ex)
             {
-                return new ObjectResult(ex.Message)
-                {
-                    StatusCode = (int)ex.StatusCode
-                };
+                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
             }
-
-            if (getInfoResult is TusBadRequestResult fail) return fail.Translate();
-            if (getInfoResult is TusForbiddenResult forbid) return forbid.Translate();
-
-            var getInfoOk = getInfoResult as TusFileInfoResult;
-
-            if (getInfoOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {getInfoResult.GetType().FullName}");
-            }
-
-            if (!string.IsNullOrEmpty(getInfoOk.UploadMetadata))
-            {
-                _context.Response.Headers.Add(HeaderConstants.UploadMetadata, getInfoOk.UploadMetadata);
-            }
-
-            if (getInfoOk.UploadLength != null)
-            {
-                _context.Response.Headers.Add(HeaderConstants.UploadLength, getInfoOk.UploadLength.Value.ToString());
-            }
-            else if (_extensionInfo.SupportedExtensions.CreationDeferLength)
-            {
-                _context.Response.Headers.Add(HeaderConstants.UploadDeferLength, "1");
-            }
-
-            var addUploadOffset = true;
-            if (getInfoOk.UploadConcat != null)
-            {
-                // Only add Upload-Offset to final files if they are complete.
-                if (getInfoOk.UploadConcat is FileConcatFinal && getInfoOk.UploadLength != getInfoOk.UploadOffset)
-                {
-                    addUploadOffset = false;
-                }
-            }
-
-            if (addUploadOffset)
-            {
-                _context.Response.Headers.Add(HeaderConstants.UploadOffset, getInfoOk.UploadOffset.ToString());
-            }
-
-            if (getInfoOk.UploadConcat != null)
-            {
-                (getInfoOk.UploadConcat as FileConcatFinal)?.AddUrlPathToFiles(_context.Request.GetDisplayUrl());
-                _context.Response.Headers.Add(HeaderConstants.UploadConcat, getInfoOk.UploadConcat.GetHeader());
-            }
-
-            return new NoContentResult();
         }
     }
 }

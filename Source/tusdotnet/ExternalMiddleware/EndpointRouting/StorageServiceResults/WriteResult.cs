@@ -1,6 +1,7 @@
 ﻿#if endpointrouting
 
 using System;
+using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -9,12 +10,12 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public bool IsComplete { get; set; }
         public long UploadOffset { get; set; }
         public bool ClientDisconnectedDuringRead { get; set; }
-        
-        // Checksum Extension
-        public bool? ChecksumMatches { get; set; }
 
         // Expiration Extension
         public DateTimeOffset? FileExpires { get; set; }
+
+        // Concatenation Extension
+        public FileConcat? FileConcat { get; set; }
     }
 }
 #endif

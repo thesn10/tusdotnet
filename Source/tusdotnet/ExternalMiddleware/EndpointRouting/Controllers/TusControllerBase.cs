@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System;
 using tusdotnet.Models.Concatenation;
 using System.Reflection;
+using System.Net;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -18,13 +19,18 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     public abstract class TusControllerBase
     {
         /// <summary>
-        /// Gets the <see cref="HttpContext"/> for the executing action.
+        /// Gets the <see cref="TusContext"/> for the executing action.
         /// </summary>
         /// <remarks>
         /// <see cref="TusProtocolHandlerEndpointBased{TController}"/> activates this property while activating controllers.
-        /// If user code directly instantiates a controller, the getter returns an empty HttpContext
+        /// If user code directly instantiates a controller, the getter returns an empty TusContext
         /// </remarks>
-        public HttpContext HttpContext { get; internal set; }
+        public TusContext TusContext { get; internal set; }
+
+        /// <summary>
+        /// Gets the <see cref="HttpContext"/> for the executing action.
+        /// </summary>
+        public HttpContext HttpContext => TusContext?.HttpContext!;
 
         /// <summary>
         /// Gets the <see cref="HttpRequest"/> for the executing action.
@@ -41,6 +47,21 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// Gets the <see cref="ClaimsPrincipal"/> for user associated with the executing action.
         /// </summary>
         public ClaimsPrincipal User => HttpContext?.User!;
+
+        /// <summary>
+        /// Gets the <see cref="ITusEndpointOptions"/> for the executing action.
+        /// </summary>
+        public ITusEndpointOptions EndpointOptions => TusContext?.Options!;
+
+        /// <summary>
+        /// Gets the configured url path of the controller for example: "/files".
+        /// </summary>
+        public string UrlPath => TusContext?.UrlPath!;
+
+        /// <summary>
+        /// Gets information about the supported tus extensions.
+        /// </summary>
+        public TusExtensionInfo ExtensionInfo => TusContext?.ExtensionInfo;
 
         /// <summary>
         /// Gets the <see cref="TusStorageClient"/> for the executing action.
@@ -138,7 +159,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                     {
                         return Ok();
                     }
-                    else return Forbidden();
+                    else return Unauthorized();
                 }
             }
 
@@ -151,8 +172,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             => new TusCreateStatusResult(fileId, expires);
 
         protected IWriteResult WriteStatus(WriteResult result) => new TusWriteStatusResult(result);
-        protected IWriteResult WriteStatus(bool isComplete, long uploadOffset, bool clientDisconnectedDuringRead, bool? checksumMatches = null, DateTimeOffset? fileExpires = null) => 
-            new TusWriteStatusResult(isComplete, uploadOffset, clientDisconnectedDuringRead, checksumMatches, fileExpires);
+        protected IWriteResult WriteStatus(bool isComplete, long uploadOffset, bool clientDisconnectedDuringRead, DateTimeOffset? fileExpires = null, FileConcat? fileConcat = null) => 
+            new TusWriteStatusResult(isComplete, uploadOffset, clientDisconnectedDuringRead, fileExpires, fileConcat);
 
         protected IFileInfoResult FileInfo(GetFileInfoResult result)
             => new TusFileInfoResult(result.UploadMetadata, result.UploadLength, result.UploadOffset, result.UploadConcat);
@@ -163,6 +184,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         protected TusBadRequestResult BadRequest() => new TusBadRequestResult();
         protected TusBadRequestResult BadRequest(string error) => new TusBadRequestResult(error);
         protected TusForbiddenResult Forbidden() => new TusForbiddenResult();
+        protected TusUnauthorizedResult Unauthorized() => new TusUnauthorizedResult();
+        protected TusStatusCodeResult StatusCode(HttpStatusCode statusCode, string message) => new TusStatusCodeResult(statusCode, message);
+
 
     }
 }

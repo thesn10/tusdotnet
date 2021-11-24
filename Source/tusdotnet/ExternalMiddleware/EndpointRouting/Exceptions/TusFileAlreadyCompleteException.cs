@@ -6,7 +6,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     [Serializable]
     public class TusFileAlreadyCompleteException : TusException
     {
-        public TusFileAlreadyCompleteException()
+        public TusFileAlreadyCompleteException() : base("Upload is already complete.")
         {
         }
 

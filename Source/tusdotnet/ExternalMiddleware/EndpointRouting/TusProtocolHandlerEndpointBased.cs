@@ -1,11 +1,15 @@
 ﻿#if endpointrouting
 
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
+using tusdotnet.Adapters;
+using tusdotnet.Constants;
+using tusdotnet.Extensions;
 using tusdotnet.ExternalMiddleware.Core;
 using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
@@ -24,7 +28,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         internal Task Invoke(HttpContext context)
         {
             var controller = (TusControllerBase)context.RequestServices.GetRequiredService<TController>();
-            return Invoke(context, controller);
+
+            var storageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
+
+            return Invoke(context, storageClientProvider, controller);
         }
     }
 
@@ -48,11 +55,13 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 controllerWithOptions.Options = _controllerOptions;
             }
 
-            return Invoke(context, controller);
+            var storageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
+
+            return Invoke(context, storageClientProvider, controller);
         }
     }
 
-    internal abstract class TusProtocolHandlerEndpointBased
+    internal class TusProtocolHandlerEndpointBased
     {
         private readonly ITusEndpointOptions _options;
 
@@ -61,58 +70,95 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             _options = options;
         }
 
+        public string UrlPath { get; set; }
 
-        internal async Task Invoke(HttpContext context, TusControllerBase controller)
+        public RequestDelegate Next { get; set; }
+
+        internal async Task Invoke(HttpContext context, ITusStorageClientProvider storageClientProvider, TusControllerBase controller)
         {
-            var storageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
-
             ApplyControllerAttributeOptions(controller.GetType());
 
+            var tusContext = new TusContext()
+            {
+                HttpContext = context,
+                Options = _options,
+                UrlPath = UrlPath,
+            };
+
             // Inject services into the controller
-            controller.HttpContext = context;
+            controller.TusContext = tusContext;
             controller.StorageClientProvider = storageClientProvider;
             controller.StorageClient = await storageClientProvider.GetOrNull(_options.StorageProfile);
 
-            var contextAdapter = ContextAdapterBuilder.CreateFakeContextAdapter(context, new DefaultTusConfiguration() { });
-            var extensionInfo = await controller.GetOptions();
+            tusContext.ExtensionInfo = await controller.GetOptions();
+            controller.TusContext.ExtensionInfo = tusContext.ExtensionInfo;
 
-            var intentType = IntentAnalyzer.DetermineIntent(contextAdapter, extensionInfo.SupportedExtensions);
+            var contextAdapter = CreateContextAdapter(context);
+            var intentType = IntentAnalyzer.DetermineIntent(contextAdapter, tusContext.ExtensionInfo.SupportedExtensions);
             if (intentType == IntentType.NotApplicable)
             {
-                // Cannot determine intent so return not found.
-                context.Response.StatusCode = 404;
-                return;
+                if (Next != null)
+                {
+                    await Next(context);
+                    return;
+                }
+                else
+                {
+                    context.Response.StatusCode = 404;
+                    return;
+                }
             }
 
-            RequestHandler requestHandler = RequestHandler.GetInstance(intentType, context, controller, extensionInfo, _options);
-            RequestValidator requestValidator = new RequestValidator(extensionInfo, requestHandler.Requires);
+            var fileId = GetFileId(context);
 
-            var valid = await requestValidator.Validate(context);
-
-            if (!valid)
+            var authorizeContext = new AuthorizeContext()
             {
-                await RespondWithValidationError(context, requestValidator);
+                IntentType = intentType,
+                ControllerMethod = GetControllerActionMethodInfo(intentType, controller),
+                FileId = fileId,
+            };
+
+            var authorizeResult = await controller.Authorize(authorizeContext);
+
+            if (!authorizeResult.IsSuccessResult)
+            {
+                await authorizeResult.Execute(tusContext);
                 return;
             }
 
-            var result = await requestHandler.Invoke();
+            var versionResult = await VerifyTusVersionIfApplicable(context, intentType);
 
-            await context.Respond(result, null);
+            if (!versionResult.IsSuccessResult)
+            {
+                await versionResult.Execute(tusContext);
+                return;
+            }
+
+            RequestHandler requestHandler = RequestHandler.GetInstance(intentType, tusContext, controller, fileId);
+            RequestValidator requestValidator = new RequestValidator(requestHandler.Requires);
+
+            var result = await requestValidator.Validate(tusContext);
+
+            if (result.IsSuccessResult)
+            {
+                result = await requestHandler.Invoke();
+            }
+
+            await result.Execute(tusContext);
         }
 
-        private async Task RespondWithValidationError(HttpContext context, RequestValidator validator)
+        private MethodInfo GetControllerActionMethodInfo(IntentType intent, TusControllerBase controller)
         {
-            if (validator.ErrorMessage != null)
+            return intent switch
             {
-                var result = new ObjectResult(validator.ErrorMessage);
-                result.StatusCode = (int)validator.StatusCode;
-                await context.Respond(result, null);
-            }
-            else
-            {
-                var result = new StatusCodeResult((int)validator.StatusCode);
-                await context.Respond(result, null);
-            }
+                IntentType.WriteFile => ((Func<WriteContext, Task<IWriteResult>>)controller.Write).Method,
+                IntentType.CreateFile => ((Func<CreateContext, Task<ICreateResult>>)controller.Create).Method,
+                IntentType.ConcatenateFiles => ((Func<CreateContext, Task<ICreateResult>>)controller.Create).Method,
+                IntentType.DeleteFile => ((Func<DeleteContext, Task<ISimpleResult>>)controller.Delete).Method,
+                IntentType.GetFileInfo => ((Func<GetFileInfoContext, Task<IFileInfoResult>>)controller.GetFileInfo).Method,
+                IntentType.GetOptions => ((Func<Task<TusExtensionInfo>>)controller.GetOptions).Method,
+                _ => throw new ArgumentException(),
+            };
         }
 
         private void ApplyControllerAttributeOptions(Type controllerType)
@@ -134,6 +180,71 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             {
                 _options.MaxAllowedUploadSizeInBytes = maxUploadAttr.MaxUploadSizeInBytes;
             }
+        }
+
+        private ContextAdapter CreateContextAdapter(HttpContext context)
+        {
+            var config = new DefaultTusConfiguration();
+
+            if (UrlPath != null)
+            {
+                config.UrlPath = UrlPath;
+            }
+            else 
+            {
+                var urlPath = (string)context.GetRouteValue("TusFileId");
+
+                if (string.IsNullOrWhiteSpace(urlPath))
+                {
+                    urlPath = context.Request.Path;
+                }
+                else
+                {
+                    var span = context.Request.Path.ToString().TrimEnd('/').AsSpan();
+                    urlPath = span.Slice(0, span.LastIndexOf('/')).ToString();
+                }
+
+                config.UrlPath = urlPath;
+            }
+
+            var adapter = ContextAdapterBuilder.FromHttpContext(context, config);
+
+            return adapter;
+        }
+
+        protected string GetFileId(HttpContext context)
+        {
+            string fileId = (string)context.GetRouteValue("TusFileId");
+
+            if (fileId == null)
+            {
+                var startIndex = context.Request.Path.Value.IndexOf(UrlPath, StringComparison.OrdinalIgnoreCase) + UrlPath.Length;
+
+                fileId = context.Request.Path.Value.Substring(startIndex).Trim('/');
+
+                if (string.IsNullOrWhiteSpace(fileId))
+                {
+                    fileId = null;
+                }
+            }
+            return fileId;
+        }
+
+        private static Task<ITusActionResult> VerifyTusVersionIfApplicable(HttpContext context, IntentType intent)
+        {
+            // Options does not require a correct tus resumable header.
+            if (intent == IntentType.GetOptions)
+                return Task.FromResult<ITusActionResult>(new TusOkResult());
+
+            var tusResumableHeader = context.Request.GetHeader(HeaderConstants.TusResumable);
+
+            if (tusResumableHeader == HeaderConstants.TusResumableValue)
+                return Task.FromResult<ITusActionResult>(new TusOkResult());
+
+            context.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);
+
+            return Task.FromResult<ITusActionResult>(new TusStatusCodeResult(HttpStatusCode.PreconditionFailed, 
+                $"Tus version {tusResumableHeader} is not supported. Supported versions: {HeaderConstants.TusResumableValue}"));
         }
     }
 }

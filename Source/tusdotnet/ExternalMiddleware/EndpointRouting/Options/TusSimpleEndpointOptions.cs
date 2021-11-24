@@ -1,5 +1,7 @@
 ﻿#if endpointrouting
 
+using tusdotnet.FileLocks;
+using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Models.Expiration;
@@ -34,13 +36,19 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         public Events Events { get; set; }
 
+        /// <summary>
+        /// Lock provider to use when locking to prevent files from being accessed while the file is still in use.
+        /// Defaults to using in-memory locks.
+        /// </summary>
+        public ITusFileLockProvider FileLockProvider { get; set; } = InMemoryFileLockProvider.Instance;
+
 #if pipelines
 
         /// <summary>
         /// Use the incoming request's PipeReader instead of the stream to read data from the client.
         /// This is only available on .NET Core 3.1 or later and if the store supports it through the ITusPipelineStore interface.
         /// </summary>
-        public virtual bool UsePipelinesIfAvailable { get; set; }
+        public bool UsePipelinesIfAvailable { get; set; }
 
 #endif
     }

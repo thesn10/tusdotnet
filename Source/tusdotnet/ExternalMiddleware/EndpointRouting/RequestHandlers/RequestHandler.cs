@@ -1,8 +1,6 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
@@ -12,64 +10,63 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
     internal abstract class RequestHandler
     {
-        protected readonly HttpContext _context;
+        protected readonly TusContext _context;
         protected readonly TusControllerBase _controller;
-        protected readonly TusExtensionInfo _extensionInfo;
-        protected readonly ITusEndpointOptions _options;
+
+        protected HttpContext HttpContext => _context.HttpContext;
+        protected TusExtensionInfo ExtensionInfo => _context.ExtensionInfo;
+        protected ITusEndpointOptions Options => _context.Options;
+        protected string UrlPath => _context.UrlPath;
 
         internal abstract RequestRequirement[] Requires { get; }
 
-        internal RequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
+        internal RequestHandler(TusContext context, TusControllerBase controller)
         {
             _context = context;
             _controller = controller;
-            _extensionInfo = extensionInfo;
-            _options = options;
         }
 
-        internal abstract Task<IActionResult> Invoke();
+        internal abstract Task<ITusActionResult> Invoke();
 
-        protected void SetCreateHeaders(DateTimeOffset? expires, long? uploadOffset)
+        internal static void SetCommonHeaders(HttpContext context, DateTimeOffset? expires, long? uploadOffset)
         {
-            var result = new Dictionary<string, string>();
             if (expires != null)
             {
-                _context.Response.Headers.Add(HeaderConstants.UploadExpires, expires.Value.ToString("R"));
+                context.Response.Headers.Add(HeaderConstants.UploadExpires, expires.Value.ToString("R"));
             }
 
             if (uploadOffset != null)
             {
-                _context.Response.Headers.Add(HeaderConstants.UploadOffset, uploadOffset.Value.ToString());
+                context.Response.Headers.Add(HeaderConstants.UploadOffset, uploadOffset.Value.ToString());
             }
         }
 
-        protected void SetTusResumableHeader()
+        internal static void SetTusResumableHeader(HttpContext context)
         {
-            _context.Response.Headers.Add(HeaderConstants.TusResumable, HeaderConstants.TusResumableValue);
+            context.Response.Headers.Add(HeaderConstants.TusResumable, HeaderConstants.TusResumableValue);
         }
 
-        protected void SetCacheNoStoreHeader()
+        internal static void SetCacheNoStoreHeader(HttpContext context)
         {
-            _context.Response.Headers.Add(HeaderConstants.CacheControl, HeaderConstants.NoStore);
+            context.Response.Headers.Add(HeaderConstants.CacheControl, HeaderConstants.NoStore);
         }
 
-        internal static RequestHandler GetInstance(IntentType intentType, HttpContext context, TusControllerBase controller, 
-            TusExtensionInfo extensionInfo, ITusEndpointOptions options)
+        internal static RequestHandler GetInstance(IntentType intentType, TusContext context, TusControllerBase controller, string fileId)
         {
             switch (intentType)
             {
                 case IntentType.CreateFile:
-                    return new CreateRequestHandler(context, controller, extensionInfo, options);
+                    return new CreateRequestHandler(context, controller);
                 case IntentType.WriteFile:
-                    return new WriteRequestHandler(context, controller, extensionInfo, options);
+                    return new WriteRequestHandler(context, controller, fileId);
                 case IntentType.DeleteFile:
-                    return new DeleteRequestHandler(context, controller, extensionInfo, options);
+                    return new DeleteRequestHandler(context, controller, fileId);
                 case IntentType.GetFileInfo:
-                    return new GetFileInfoRequestHandler(context, controller, extensionInfo, options);
+                    return new GetFileInfoRequestHandler(context, controller, fileId);
                 case IntentType.GetOptions:
-                    return new GetOptionsRequestHandler(context, controller, extensionInfo, options);
+                    return new GetOptionsRequestHandler(context, controller, fileId);
                 case IntentType.ConcatenateFiles:
-                    return new ConcatenateRequestHandler(context, controller, extensionInfo, options);
+                    return new ConcatenateRequestHandler(context, controller);
                 default:
                     return null;
             }

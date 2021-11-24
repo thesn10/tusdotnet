@@ -45,10 +45,6 @@ namespace AspNetCore_netcoreapp3._1_TestApp
             // Later used inside MyTusController to limit creation to this policy.
             services.AddAuthorization(opt => opt.AddPolicy("create-file-policy", builder => builder.RequireRole("create-file")));
 
-            // Only needed for output formatting.
-            // TODO: Might not want to rely on Mvc being added? Could just include our own plain text formatter if AddMvc has not been added.
-            services.AddMvc();
-
             services.AddLogging(builder => builder.AddConsole());
 
             services

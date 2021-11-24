@@ -1,6 +1,5 @@
-﻿#if endpointrouting
-
-using Microsoft.AspNetCore.Mvc;
+﻿using System.Net;
+using System.Threading.Tasks;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -18,11 +17,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         public bool IsSuccessResult => false;
 
-        public IActionResult Translate()
+        public Task Execute(TusContext context)
         {
-            return new BadRequestObjectResult(Message);
+            return new TusStatusCodeResult(HttpStatusCode.BadRequest, Message).Execute(context);
         }
     }
 }
-
-#endif

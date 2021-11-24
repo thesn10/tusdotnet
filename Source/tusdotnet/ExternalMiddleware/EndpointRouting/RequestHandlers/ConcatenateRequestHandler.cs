@@ -1,8 +1,5 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.AspNetCore.Mvc;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -49,34 +46,21 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         private readonly bool _isPartialFile;
 
-        internal ConcatenateRequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
-            : base(context, controller, extensionInfo, options)
+        internal ConcatenateRequestHandler(TusContext context, TusControllerBase controller)
+            : base(context, controller)
         {
             _uploadConcat = ParseUploadConcatHeader();
             _isPartialFile = _uploadConcat.Type is FileConcatPartial;
         }
 
-        internal override async Task<IActionResult> Invoke()
+        internal override async Task<ITusActionResult> Invoke()
         {
-            var authorizeContext = new AuthorizeContext()
-            {
-                IntentType = IntentType.ConcatenateFiles,
-                ControllerMethod = ((Func<CreateContext, Task<ICreateResult>>)_controller.Create).Method,
-            };
-
-            var authorizeResult = await _controller.Authorize(authorizeContext);
-
-            if (!authorizeResult.IsSuccessResult)
-            {
-                return authorizeResult.Translate();
-            }
-
-            var metadata = _context.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
+            var metadata = HttpContext.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
 
             long uploadLength;
-            if (_context.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
+            if (HttpContext.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
             {
-                uploadLength = long.Parse(_context.Request.Headers[HeaderConstants.UploadLength].First());
+                uploadLength = long.Parse(HttpContext.Request.Headers[HeaderConstants.UploadLength].First());
             }
             else
             {
@@ -98,34 +82,26 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new ObjectResult(ex.Message)
-                {
-                    StatusCode = (int)ex.StatusCode
-                };
+                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
             }
 
-            if (createResult is TusBadRequestResult fail) return fail.Translate();
-            if (createResult is TusForbiddenResult forbid) return forbid.Translate();
+            if (createResult is not TusCreateStatusResult createOk)
+                return createResult;
 
-            var createOk = createResult as TusCreateStatusResult;
-
-            if (createOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {createResult.GetType().FullName}");
-            }
-
-            if (_isPartialFile && _context.Request.Headers.ContentLength > 0)
+            if (_isPartialFile && HttpContext.Request.Headers.ContentLength > 0)
             {
                 // creation-with-upload
-                var writeHandler = new WriteRequestHandler(_context, _controller, _extensionInfo, _options, createOk.FileId);
-                await writeHandler.Invoke();
-            }
-            else
-            {
-                SetCreateHeaders(createOk.Expires, null);
+                var writeHandler = new WriteRequestHandler(_context, _controller, createOk.FileId);
+                var writeResult = await writeHandler.Invoke();
+
+                if (writeResult is TusWriteStatusResult writeOk)
+                {
+                    createOk.Expires = writeOk.FileExpires;
+                    createOk.UploadOffset = writeOk.UploadOffset;
+                }
             }
 
-            return new CreatedResult($"{_context.Request.GetDisplayUrl().TrimEnd('/')}/{createOk.FileId}", null);
+            return createOk;
 
         }
 
@@ -139,19 +115,19 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             // Only validate upload length for partial files as the length of a final file is implicit.
             if (_isPartialFile)
             {
-                requirements.Add(new UploadLengthForCreateFileAndConcatenateFiles(_options.MaxAllowedUploadSizeInBytes));
+                requirements.Add(new UploadLengthForCreateFileAndConcatenateFiles(Options.MaxAllowedUploadSizeInBytes));
             }
 
-            requirements.Add(new UploadMetadata(metadata => _metadataFromRequirement = metadata, _options.MetadataParsingStrategy));
+            requirements.Add(new UploadMetadata(metadata => _metadataFromRequirement = metadata, Options.MetadataParsingStrategy));
 
             return requirements.ToArray();
         }
 
         private UploadConcat ParseUploadConcatHeader()
         {
-            string uploadConcat = _context.Request.Headers[HeaderConstants.UploadConcat].FirstOrDefault();
+            string uploadConcat = HttpContext.Request.Headers[HeaderConstants.UploadConcat].FirstOrDefault();
 
-            return new UploadConcat(uploadConcat, _context.Request.GetDisplayUrl());
+            return new UploadConcat(uploadConcat, UrlPath);
         }
     }
 }

@@ -1,15 +1,8 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using tusdotnet.Adapters;
 using tusdotnet.Models;
-
-#if endpointrouting
-using Microsoft.AspNetCore.Routing;
-#endif
 
 namespace tusdotnet.ExternalMiddleware.Core
 {
@@ -52,30 +45,5 @@ namespace tusdotnet.ExternalMiddleware.Core
         {
             return new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}");
         }
-
-#if endpointrouting
-
-        internal static ContextAdapter CreateFakeContextAdapter(HttpContext context, DefaultTusConfiguration config)
-        {
-            var urlPath = (string)context.GetRouteValue("TusFileId");
-
-            if (string.IsNullOrWhiteSpace(urlPath))
-            {
-                urlPath = context.Request.Path;
-            }
-            else
-            {
-                var span = context.Request.Path.ToString().TrimEnd('/').AsSpan();
-                urlPath = span.Slice(0, span.LastIndexOf('/')).ToString();
-            }
-
-            config.UrlPath = urlPath;
-
-            var adapter = ContextAdapterBuilder.FromHttpContext(context, config);
-
-            return adapter;
-        }
-
-#endif
     }
 }

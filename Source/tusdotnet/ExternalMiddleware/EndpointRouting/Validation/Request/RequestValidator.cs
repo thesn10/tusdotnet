@@ -7,38 +7,33 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
 {
     internal sealed class RequestValidator
     {
-        public HttpStatusCode StatusCode { get; private set; }
-        public string ErrorMessage { get; private set; }
-
-        private readonly TusExtensionInfo _extensionInfo;
         private readonly RequestRequirement[] _requirements;
 
-        public RequestValidator(TusExtensionInfo extensionInfo, params RequestRequirement[] requirements)
+        public RequestValidator(params RequestRequirement[] requirements)
         {
-            _extensionInfo = extensionInfo;
             _requirements = requirements ?? new RequestRequirement[0];
         }
 
-        public async Task<bool> Validate(HttpContext context)
+        public async Task<ITusActionResult> Validate(TusContext context)
         {
-            StatusCode = HttpStatusCode.OK;
-            ErrorMessage = null;
+            HttpStatusCode statusCode = HttpStatusCode.OK;
+            string errorMessage = null;
 
             foreach (var spec in _requirements)
             {
-                var (status, error) = await spec.Validate(_extensionInfo, context);
+                var (status, error) = await spec.Validate(context.ExtensionInfo, context.HttpContext);
 
                 if (status == HttpStatusCode.OK)
                 {
                     continue;
                 }
 
-                StatusCode = status;
-                ErrorMessage = error;
+                statusCode = status;
+                errorMessage = error;
                 break;
             }
 
-            return StatusCode == HttpStatusCode.OK;
+            return new TusStatusCodeResult(statusCode, errorMessage);
         }
     }
 }

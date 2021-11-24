@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -6,9 +8,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     {
         public bool IsSuccessResult => true;
 
-        public IActionResult Translate()
+        public Task Execute(TusContext context)
         {
-            return new OkResult();
+            return new TusStatusCodeResult(HttpStatusCode.NoContent).Execute(context);
         }
     }
 }

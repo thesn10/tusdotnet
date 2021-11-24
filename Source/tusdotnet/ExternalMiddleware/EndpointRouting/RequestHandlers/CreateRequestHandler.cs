@@ -1,8 +1,5 @@
 ﻿#if endpointrouting
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.AspNetCore.Mvc;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -43,41 +40,28 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
         internal override RequestRequirement[] Requires => new RequestRequirement[] 
         {
-            new UploadLengthForCreateFileAndConcatenateFiles(_options.MaxAllowedUploadSizeInBytes),
-            new UploadMetadata(metadata => _metadataFromRequirement = metadata, _options.MetadataParsingStrategy)
+            new UploadLengthForCreateFileAndConcatenateFiles(Options.MaxAllowedUploadSizeInBytes),
+            new UploadMetadata(metadata => _metadataFromRequirement = metadata, Options.MetadataParsingStrategy)
         };
 
-        internal CreateRequestHandler(HttpContext context, TusControllerBase controller, TusExtensionInfo extensionInfo, ITusEndpointOptions options)
-            : base(context, controller, extensionInfo, options)
+        internal CreateRequestHandler(TusContext context, TusControllerBase controller)
+            : base(context, controller)
         {
 
         }
 
-        internal override async Task<IActionResult> Invoke()
+        internal override async Task<ITusActionResult> Invoke()
         {
-            var authorizeContext = new AuthorizeContext()
-            {
-                IntentType = IntentType.CreateFile,
-                ControllerMethod = ((Func<CreateContext, Task<ICreateResult>>)_controller.Create).Method,
-            };
-
-            var authorizeResult = await _controller.Authorize(authorizeContext);
-
-            if (!authorizeResult.IsSuccessResult)
-            {
-                return authorizeResult.Translate();
-            }
-
-            var metadata = _context.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
+            var metadata = HttpContext.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
 
             long uploadLength;
-            if (_context.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
+            if (HttpContext.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
             {
-                uploadLength = long.Parse(_context.Request.Headers[HeaderConstants.UploadLength].First());
+                uploadLength = long.Parse(HttpContext.Request.Headers[HeaderConstants.UploadLength].First());
             }
             else
             {
-                uploadLength = 0;
+                uploadLength = -1;
             }
 
             var createContext = new CreateContext
@@ -95,49 +79,47 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new ObjectResult(ex.Message)
-                {
-                    StatusCode = (int)ex.StatusCode
-                };
+                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
             }
 
-            if (createResult is TusBadRequestResult fail) return fail.Translate();
-            if (createResult is TusForbiddenResult forbid) return forbid.Translate();
-
-            var createOk = createResult as TusCreateStatusResult;
-
-            if (createOk == null)
-            {
-                throw new InvalidOperationException($"Unknown action result: {createResult.GetType().FullName}");
-            }
+            if (createResult is not TusCreateStatusResult createOk)
+                return createResult;
 
             var isEmptyFile = createContext.UploadLength == 0;
 
             if (isEmptyFile)
             {
-                SetTusResumableHeader();
-                var completedResult = await _controller.FileCompleted(new() { FileId = createOk.FileId });
+                ISimpleResult completedResult;
+                try
+                {
+                    completedResult = await _controller.FileCompleted(new() { FileId = createOk.FileId });
+                }
+                catch (TusException ex)
+                {
+                    return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                }
 
-                if (completedResult is TusBadRequestResult completeFail)
-                    return new BadRequestObjectResult(completeFail.Message);
+                if (!completedResult.IsSuccessResult)
+                    return completedResult;
 
-                var createdResult = new CreatedResult($"{_context.Request.GetDisplayUrl().TrimEnd('/')}/{createOk.FileId}", null);
-
-                SetCreateHeaders(createOk.Expires, null);
-                return createdResult;
+                return createOk;
             }
             else
             {
-                if (_context.Request.Headers.ContentLength > 0)
+                if (HttpContext.Request.Headers.ContentLength > 0)
                 {
                     // creation-with-upload
-                    var writeHandler = new WriteRequestHandler(_context, _controller, _extensionInfo, _options, createOk.FileId);
-                    await writeHandler.Invoke();
+                    var writeHandler = new WriteRequestHandler(_context, _controller, createOk.FileId);
+                    var writeResult = await writeHandler.Invoke();
+
+                    if (writeResult is TusWriteStatusResult writeOk)
+                    {
+                        createOk.Expires = writeOk.FileExpires;
+                        createOk.UploadOffset = writeOk.UploadOffset;
+                    }
                 }
 
-                var createdResult = new CreatedResult($"{_context.Request.GetDisplayUrl().TrimEnd('/')}/{createOk.FileId}", null);
-
-                return createdResult;
+                return createOk;
             }
         }
     }

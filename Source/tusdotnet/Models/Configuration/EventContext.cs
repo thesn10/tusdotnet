@@ -81,5 +81,25 @@ namespace tusdotnet.Models.Configuration
 
             return eventContext;
         }
+
+        internal static TSelf Create(string fileId, HttpContext context, ITusStore store, CancellationToken cancellationToken, Action<TSelf> configure = null)
+        {
+            if (string.IsNullOrEmpty(fileId))
+            {
+                fileId = null;
+            }
+
+            var eventContext = new TSelf
+            {
+                Store = store,
+                CancellationToken = cancellationToken,
+                FileId = fileId,
+                HttpContext = context,
+            };
+
+            configure?.Invoke(eventContext);
+
+            return eventContext;
+        }
     }
 }

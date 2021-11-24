@@ -1,6 +1,8 @@
 ﻿#if endpointrouting
 
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -8,9 +10,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     {
         public bool IsSuccessResult => false;
 
-        public IActionResult Translate()
+        public Task Execute(TusContext context)
         {
-            return new ForbidResult();
+            return new TusStatusCodeResult(HttpStatusCode.Forbidden).Execute(context);
         }
     }
 }

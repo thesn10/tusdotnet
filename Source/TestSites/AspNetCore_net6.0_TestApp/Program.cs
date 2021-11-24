@@ -37,7 +37,7 @@ static void AddAuthorization(WebApplicationBuilder builder)
 static void AddTus(WebApplicationBuilder builder)
 {
     // to use tus controllers
-    builder.Services.AddMvcCore();
+    //builder.Services.AddMvcCore();
 
     builder.Services.AddTus().AddController<MyTusController>().AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), true).AddEndpointServices();
 }

@@ -8,6 +8,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     {
         public IntentType IntentType { get; set; }
         public MethodInfo ControllerMethod { get; set; }
+        public string? FileId { get; set; }
+
         internal RequestHandler RequestHandler { get; set; }
     }
 }

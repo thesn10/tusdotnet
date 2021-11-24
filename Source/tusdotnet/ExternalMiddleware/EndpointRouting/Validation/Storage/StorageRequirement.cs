@@ -10,5 +10,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
     {
         public abstract Task Validate(StoreAdapter store, CancellationToken cancellationToken);
     }
+
+    internal interface IStorageRequirementWithPostValidation
+    {
+        public abstract Task PostValidate(StoreAdapter store, CancellationToken cancellationToken);
+    }
 }
 #endif

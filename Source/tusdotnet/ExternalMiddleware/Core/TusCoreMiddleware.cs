@@ -6,6 +6,10 @@ using tusdotnet.Adapters;
 using tusdotnet.ExternalMiddleware.Core;
 using tusdotnet.Models;
 
+#if endpointrouting
+using tusdotnet.ExternalMiddleware.EndpointRouting;
+#endif
+
 // ReSharper disable once CheckNamespace
 namespace tusdotnet
 {
@@ -50,6 +54,34 @@ namespace tusdotnet
                 return;
             }
 
+#if endpointrouting
+
+            var options = new TusSimpleEndpointOptions()
+            {
+                Events = config.Events,
+                Expiration = config.Expiration,
+                MaxAllowedUploadSizeInBytes = config.GetMaxAllowedUploadSizeInBytes(),
+                MetadataParsingStrategy = config.MetadataParsingStrategy,
+                UsePipelinesIfAvailable = config.UsePipelinesIfAvailable,
+                FileLockProvider = config.FileLockProvider,
+            };
+
+            var storageClientProvider = new StaticTusStorageClientProvider(config.Store);
+
+            var controller = new EventsBasedTusController()
+            {
+                Options = options,
+            };
+
+            var handler = new TusProtocolHandlerEndpointBased(options)
+            {
+                UrlPath = config.UrlPath,
+                Next = _next,
+            };
+
+            await handler.Invoke(context, storageClientProvider, controller);
+
+#else
             var request = CreateRequestAdapter(context, config, requestUri);
             var response = CreateResponseAdapter(context);
 
@@ -66,6 +98,7 @@ namespace tusdotnet
             {
                 await _next(context);
             }
+#endif
         }
 
         private RequestAdapter CreateRequestAdapter(HttpContext context, DefaultTusConfiguration config, Uri requestUri)

@@ -231,6 +231,7 @@ namespace tusdotnet.test.Tests
             var response = await server.CreateRequest($"/files/{Guid.NewGuid()}")
                 .AddTusResumableHeader()
                 .AddHeader("Upload-Length", "10")
+                .AddHeader("Upload-Offset", "0")
                 .OverrideHttpMethodIfNeeded("PATCH", methodToUse)
                 .And(m => m.AddBody())
                 .SendAsync(methodToUse);

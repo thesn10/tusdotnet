@@ -56,6 +56,9 @@ namespace tusdotnet.Stores
             {
                 _checksumStore = checksumStore;
                 Extensions.Checksum = true;
+#if trailingheaders
+                Extensions.ChecksumTrailer = true;
+#endif
             }
 
             if (store is ITusConcatenationStore concatStore)

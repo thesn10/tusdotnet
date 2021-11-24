@@ -24,20 +24,12 @@ namespace tusdotnet.Extensions.Internal
 
         internal static string? GetTrailingUploadChecksumHeader(this ContextAdapter context)
         {
-            var httpRequest = context.HttpContext.Request;
-
-            if (!httpRequest.SupportsTrailers() || !httpRequest.CheckTrailersAvailable())
-                return null;
-
-            if (!context.HasDeclaredTrailingUploadChecksumHeader())
-                return null;
-
-            return httpRequest.GetTrailer(HeaderConstants.UploadChecksum).FirstOrDefault();
+            return context.HttpContext.Request.GetTrailingUploadChecksumHeader();
         }
 
         internal static bool HasDeclaredTrailingUploadChecksumHeader(this ContextAdapter context)
         {
-            return context.HttpContext.Request.GetDeclaredTrailers().Any(x => x == HeaderConstants.UploadChecksum);
+            return context.HttpContext.Request.HasDeclaredTrailingUploadChecksumHeader();
         }
 
 #endif

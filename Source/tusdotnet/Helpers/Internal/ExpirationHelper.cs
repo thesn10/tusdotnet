@@ -47,7 +47,7 @@ namespace tusdotnet.Helpers
             return _expirationStore.GetExpirationAsync(fileId, cancellationToken);
         }
 
-        internal string FormatHeader(DateTimeOffset? expires)
+        internal static string FormatHeader(DateTimeOffset? expires)
         {
             return expires?.ToString("R");
         }

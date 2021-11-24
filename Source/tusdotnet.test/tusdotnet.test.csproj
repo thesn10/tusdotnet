@@ -79,11 +79,11 @@
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.1' ">
-    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines</DefineConstants>
+    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines;endpointrouting</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
-    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines</DefineConstants>
+    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines;endpointrouting</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net452' ">

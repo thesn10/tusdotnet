@@ -99,7 +99,7 @@ namespace tusdotnet.IntentHandlers
 
             if (expires.HasValue)
             {
-                Response.SetHeader(HeaderConstants.UploadExpires, _expirationHelper.FormatHeader(expires));
+                Response.SetHeader(HeaderConstants.UploadExpires, ExpirationHelper.FormatHeader(expires));
             }
 
             Response.SetStatus(HttpStatusCode.NoContent);

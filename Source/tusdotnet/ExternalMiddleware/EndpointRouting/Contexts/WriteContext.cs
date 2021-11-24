@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
@@ -14,14 +15,12 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         public long? UploadLength { get; set; }
 
-        public Func<Checksum> GetChecksumProvidedByClient { get; set; }
+        public Func<Task<Checksum>> GetChecksumProvidedByClient { get; set; }
 
         public Stream RequestStream { get; set; }
 #if pipelines
         public System.IO.Pipelines.PipeReader RequestReader { get; set; }
 #endif
-
-        public bool IsPartialFile { get; set; }
     }
 }
 

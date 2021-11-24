@@ -44,7 +44,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
                 new FileExist(fileId),
                 new UploadLengthForWriteFile(fileId, uploadLength),
                 new UploadConcatForWriteFile(fileId),
-                new UploadChecksum(checksum),
+                new UploadChecksum(options.GetChecksumProvidedByClient, fileId),
                 new FileHasNotExpired(fileId),
                 new RequestOffsetMatchesFileOffset(uploadOffset, fileId),
                 new FileIsNotCompleted(fileId));
@@ -82,6 +82,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
 
             writeResult.UploadOffset = uploadOffset + bytesWritten;
 
+            await validator.PostValidate(_storeAdapter, cancellationToken);
+
             if (_storeAdapter.Extensions.Expiration)
             {
                 if (options.Expiration is SlidingExpiration)
@@ -95,10 +97,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
                 }
             }
 
-            if (_storeAdapter.Extensions.Checksum)
+            if (_storeAdapter.Extensions.Concatenation)
             {
-                if (checksum != null)
-                    writeResult.ChecksumMatches = await _storeAdapter.VerifyChecksumAsync(fileId, checksum.Algorithm, checksum.Hash, cancellationToken);
+                writeResult.FileConcat = await _storeAdapter.GetUploadConcatAsync(fileId, cancellationToken);
             }
 
             writeResult.IsComplete = await _storeAdapter.GetUploadLengthAsync(fileId, cancellationToken) == writeResult.UploadOffset;
