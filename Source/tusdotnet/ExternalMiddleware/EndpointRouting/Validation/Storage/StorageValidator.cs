@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using System.Linq;
+﻿using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Stores;
@@ -20,6 +18,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
         {
             foreach (var spec in _requirements)
             {
+                if (spec == null) continue;
+
                 await spec.Validate(store, cancellationToken);
             }
         }
@@ -28,9 +28,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
         {
             foreach (var spec in _requirements.OfType<IStorageRequirementWithPostValidation>())
             {
+                if (spec == null) continue;
+
                 await spec.PostValidate(store, cancellationToken);
             }
         }
     }
 }
-#endif

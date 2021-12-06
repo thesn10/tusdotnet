@@ -24,8 +24,7 @@ namespace tusdotnet.test.Tests
         {
             var fileId = Guid.NewGuid().ToString();
 
-            var store = Substitute.For<ITusStore, ITusTerminationStore>();
-            store.FileExistAsync(fileId, Arg.Any<CancellationToken>()).Returns(true);
+            var store = Substitute.For<ITusStore, ITusTerminationStore>().WithExistingFile(fileId, uploadLength: 10);
             ((ITusTerminationStore)store).DeleteFileAsync(fileId, Arg.Any<CancellationToken>()).Returns(_ =>
             {
                 Thread.Sleep(500);

@@ -1,5 +1,4 @@
-﻿#if endpointrouting
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
@@ -40,4 +39,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         }
     }
 }
-#endif

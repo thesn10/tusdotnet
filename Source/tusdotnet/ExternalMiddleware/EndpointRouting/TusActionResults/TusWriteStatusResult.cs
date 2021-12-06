@@ -1,59 +1,68 @@
-﻿#if endpointrouting
-
-using Microsoft.AspNetCore.Http;
-using System;
+﻿using System;
 using System.Net;
 using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
+using tusdotnet.Helpers;
 using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// An <see cref="ITusActionResult"/> that when executed will produce a write status response.
+    /// </summary>
     public class TusWriteStatusResult : IWriteResult
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TusWriteStatusResult"/> class.
+        /// </summary>
         public TusWriteStatusResult(WriteResult writeResult)
-            : this(writeResult.IsComplete, writeResult.UploadOffset, writeResult.ClientDisconnectedDuringRead, 
-                   writeResult.FileExpires, writeResult.FileConcat)
+            : this(writeResult.UploadOffset, writeResult.IsComplete, writeResult.FileExpires, writeResult.FileConcatenation)
         {
         }
 
-        public TusWriteStatusResult(bool isComplete, long uploadOffset, bool clientDisconnectedDuringRead, DateTimeOffset? fileExpires = null, FileConcat? fileConcat = null)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TusWriteStatusResult"/> class.
+        /// </summary>
+        public TusWriteStatusResult(long uploadOffset, bool isComplete, DateTimeOffset? fileExpires = null, FileConcat? fileConcat = null)
         {
-            IsComplete = isComplete;
             UploadOffset = uploadOffset;
-            ClientDisconnectedDuringRead = clientDisconnectedDuringRead;
+            IsComplete = isComplete;
             FileExpires = fileExpires;
-            FileConcat = fileConcat;
+            FileConcatenation = fileConcat;
         }
 
-        public bool IsComplete { get; set; }
-        public long UploadOffset { get; internal set; }
-        public bool ClientDisconnectedDuringRead { get; internal set; }
+        /// <summary>
+        /// Value to set the Upload-Offset Header
+        /// </summary>
+        public long UploadOffset { get; set; }
 
-        // Expiration Extension
+        /// <summary>
+        /// True if the file upload is complete
+        /// </summary>
+        public bool IsComplete { get; set; }
+
+        /// <summary>
+        /// Value to set the Upload-Expires Header
+        /// </summary>
         public DateTimeOffset? FileExpires { get; set; }
 
-        // Concatenation Extension
-        public FileConcat? FileConcat { get; set; }
+        /// <summary>
+        /// File concatenation information otherwise null
+        /// </summary>
+        public FileConcat FileConcatenation { get; set; }
 
+        /// <inheritdoc />
         public bool IsSuccessResult => true;
 
+        /// <inheritdoc />
         public Task Execute(TusContext context)
         {
-            if (ClientDisconnectedDuringRead)
-            {
-                // ?
-                //return new TusBadRequestResult().Execute(context);
-                return Task.CompletedTask;
-            }
-
             context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NoContent;
 
             RequestHandler.SetTusResumableHeader(context.HttpContext);
             RequestHandler.SetCommonHeaders(context.HttpContext, FileExpires, UploadOffset);
 
-            return Task.CompletedTask;
+            return TaskHelper.Completed;
         }
     }
 }
-#endif

@@ -1,9 +1,10 @@
-﻿#if endpointrouting
-
-using tusdotnet.Models;
+﻿using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// Options for an tus endpoint
+    /// </summary>
     public interface ITusEndpointOptions
     {
         /// <summary>
@@ -25,4 +26,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public MetadataParsingStrategy MetadataParsingStrategy { get; set; }
     }
 }
-#endif

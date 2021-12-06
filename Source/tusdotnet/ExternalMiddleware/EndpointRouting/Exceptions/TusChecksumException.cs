@@ -1,33 +1,39 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Net;
-using System.Runtime.Serialization;
 using tusdotnet.Constants;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
-    [Serializable]
+    /// <summary>
+    /// Exception thrown if there is a checksum error
+    /// </summary>
     public class TusChecksumException : TusException
     {
+        /// <summary>
+		/// Initializes a new instance of the <see cref="TusChecksumException"/> class.
+		/// </summary>
         public TusChecksumException()
         {
         }
 
+        /// <summary>
+		/// Initializes a new instance of the <see cref="TusChecksumException"/> class.
+		/// </summary>
         public TusChecksumException(HttpStatusCode statusCode, string message) : base(message, statusCode)
         {
         }
 
-        public static void ThrowCouldNotParseHeader()
+        internal static void ThrowCouldNotParseHeader()
         {
             throw new TusChecksumException(HttpStatusCode.BadRequest, $"Could not parse {HeaderConstants.UploadChecksum} header");
         }
 
-        public static void ThrowChecksumNotMatching()
+        internal static void ThrowChecksumNotMatching()
         {
             throw new TusChecksumException((HttpStatusCode)460, "Header Upload-Checksum does not match the checksum of the file");
         }
 
-        public static void ThrowUnsupportedAlgorithm(IEnumerable<string> checksumAlgorithms)
+        internal static void ThrowUnsupportedAlgorithm(IEnumerable<string> checksumAlgorithms)
         {
             throw new TusChecksumException(HttpStatusCode.BadRequest, $"Unsupported checksum algorithm. Supported algorithms are: {string.Join(",", checksumAlgorithms)}");
         }

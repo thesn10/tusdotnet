@@ -52,7 +52,7 @@ namespace AspNetCore_net6._0_TestApp
             return errors;
         }
 
-        public override async Task<ISimpleResult> FileCompleted(FileCompletedContext context)
+        public override Task<ISimpleResult> FileCompleted(FileCompletedContext context)
         {
             _logger.LogInformation($"Upload of file {context.FileId} is complete!");
 
@@ -60,14 +60,14 @@ namespace AspNetCore_net6._0_TestApp
             // The default TusDiskStore implements this interface:
             //var file = await StorageClient.Get(context.FileId, HttpContext.RequestAborted);
 
-            return Ok();
+            return Task.FromResult<ISimpleResult>(Ok());
         }
 
         public override async Task<ISimpleResult> Delete(DeleteContext context)
         {
             _logger.LogInformation($"Deleting file {context.FileId}");
 
-            await StorageClient.Delete(context, HttpContext.RequestAborted);
+            await StorageClient.Delete(context, default, HttpContext.RequestAborted);
 
             // Can the file be deleted? If not call BadRequest(<message>);
             return Ok();

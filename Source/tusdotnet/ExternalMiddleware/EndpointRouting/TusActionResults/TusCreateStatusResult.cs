@@ -1,8 +1,4 @@
-﻿#if endpointrouting
-
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
-using System;
+﻿using System;
 using System.Net;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
@@ -11,37 +7,69 @@ using tusdotnet.Helpers;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// An <see cref="ITusActionResult"/> that when executed will produce a create status response.
+    /// </summary>
     public class TusCreateStatusResult : ICreateResult
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TusCreateStatusResult"/> class.
+        /// </summary>
         public TusCreateStatusResult(CreateResult result)
             : this(result.FileId, result.FileExpires)
         {
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TusCreateStatusResult"/> class.
+        /// </summary>
         public TusCreateStatusResult(string fileId, DateTimeOffset? expires = null)
         {
             FileId = fileId;
-            Expires = expires;
+            FileExpires = expires;
         }
 
+        /// <summary>
+        /// File id to construct the file location url from
+        /// </summary>
         public string FileId { get; set; }
-        public DateTimeOffset? Expires { get; set; }
 
+        /// <summary>
+        /// Value to set the Upload-Expires Header
+        /// </summary>
+        public DateTimeOffset? FileExpires { get; set; }
+
+        /// <summary>
+        /// Value to set the Upload-Offset Header
+        /// </summary>
         public long? UploadOffset { get; set; }
 
+        /// <summary>
+        /// Location url of the created file
+        /// </summary>
+        public string? Location { get; set; }
+
+        /// <inheritdoc />
         public bool IsSuccessResult => true;
 
+        /// <inheritdoc />
         public Task Execute(TusContext context)
         {
             RequestHandler.SetTusResumableHeader(context.HttpContext);
-            RequestHandler.SetCommonHeaders(context.HttpContext, Expires, UploadOffset);
+            RequestHandler.SetCommonHeaders(context.HttpContext, FileExpires, UploadOffset);
 
             context.HttpContext.Response.StatusCode = (int)HttpStatusCode.Created;
-            context.HttpContext.Response.Headers[HeaderConstants.Location] = $"{context.HttpContext.Request.Path.Value.TrimEnd('/')}/{FileId}"; // TODO
 
-            return Task.CompletedTask;
+            if (Location != null)
+            {
+                context.HttpContext.Response.Headers[HeaderConstants.Location] = Location;
+            }
+            else
+            {
+                context.HttpContext.Response.Headers[HeaderConstants.Location] = context.RoutingHelper.GenerateFilePath(FileId);
+            }
+
+            return TaskHelper.Completed;
         }
     }
 }
-
-#endif

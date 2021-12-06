@@ -124,6 +124,8 @@ namespace tusdotnet.Models
 
         private DateTimeOffset? _systemTime;
 
+        internal DateTimeOffset? MockedTime => _systemTime;
+
         internal void MockSystemTime(DateTimeOffset systemTime)
         {
             _systemTime = systemTime;

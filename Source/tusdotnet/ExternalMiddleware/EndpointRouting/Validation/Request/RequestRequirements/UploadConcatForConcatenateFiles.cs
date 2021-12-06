@@ -14,7 +14,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             _uploadConcat = uploadConcat;
         }
 
-        public override Task<(HttpStatusCode status, string error)> Validate(TusExtensionInfo extensionInfo, HttpContext context)
+        public override Task<ITusActionResult> Validate(TusExtensionInfo extensionInfo, HttpContext context)
         {
             if (!_uploadConcat.IsValid)
             {

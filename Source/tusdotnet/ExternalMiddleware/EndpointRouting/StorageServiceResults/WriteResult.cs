@@ -1,21 +1,31 @@
-﻿#if endpointrouting
-
-using System;
+﻿using System;
 using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// Result of an write file operation
+    /// </summary>
     public class WriteResult
     {
+        /// <summary>
+        /// True if the file upload is complete
+        /// </summary>
         public bool IsComplete { get; set; }
-        public long UploadOffset { get; set; }
-        public bool ClientDisconnectedDuringRead { get; set; }
 
-        // Expiration Extension
+        /// <summary>
+        /// Current upload offset of the file
+        /// </summary>
+        public long UploadOffset { get; set; }
+
+        /// <summary>
+        /// The expiration of the file (if supported)
+        /// </summary>
         public DateTimeOffset? FileExpires { get; set; }
 
-        // Concatenation Extension
-        public FileConcat? FileConcat { get; set; }
+        /// <summary>
+        /// File concatenation information otherwise null
+        /// </summary>
+        public FileConcat? FileConcatenation { get; set; }
     }
 }
-#endif

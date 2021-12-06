@@ -25,7 +25,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
             }
             else if (_storeAdapter.Extensions.Concatenation && partialFiles != null)
             {
-                var validator = new StorageValidator(new FinalFileConcatValid(partialFiles));
+                var validator = new StorageValidator(new FinalFileConcatValid(partialFiles, options.MaxConcatFileSize));
                 await validator.Validate(_storeAdapter, cancellationToken);
 
                 createResult.FileId = await _storeAdapter.CreateFinalFileAsync(partialFiles, uploadMetadata, cancellationToken);

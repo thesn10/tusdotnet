@@ -10,10 +10,12 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
     internal sealed class FinalFileConcatValid : StorageRequirement
     {
         private readonly string[] _partialFiles;
+        private readonly long? _maxConcatSize;
 
-        public FinalFileConcatValid(string[] partialFiles)
+        public FinalFileConcatValid(string[] partialFiles, long? maxConcatSize)
         {
             _partialFiles = partialFiles;
+            _maxConcatSize = maxConcatSize;
         }
 
         public override async Task Validate(StoreAdapter store, CancellationToken cancellationToken)
@@ -61,11 +63,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
                     $"Some of the files supplied for concatenation are not finished and can not be concatenated: {string.Join(", ", incompleteFiles)}");
             }
 
-            // TODO
-            /*if (totalSize > _maxUploadSize)
+            if (_maxConcatSize.HasValue && totalSize > _maxConcatSize)
             {
                 throw new TusFileTooLargeException("The concatenated file exceeds the server's max file size.");
-            }*/
+            }
         }
     }
 }

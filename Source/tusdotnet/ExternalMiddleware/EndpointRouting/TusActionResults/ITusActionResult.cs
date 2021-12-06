@@ -2,6 +2,9 @@
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// Result of an controller action method
+    /// </summary>
     public interface ITusActionResult
     {
         /// <summary>

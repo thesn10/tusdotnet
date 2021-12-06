@@ -1,12 +1,10 @@
-﻿#if endpointrouting
-
-using System;
+﻿using System;
 using tusdotnet.Models.Expiration;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
     /// <summary>
-    /// Options for <see cref="TusStorageClient.Create"/>
+    /// Options for a create operation
     /// </summary>
     public class CreateOptions
     {
@@ -19,9 +17,15 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         public ExpirationBase Expiration { get; set; }
 
+        /// <summary>
+        /// Maximum final size of a file after concatenation
+        /// Set to null to allow any size. The size might still be restricted by the operating system.
+        /// </summary>
+        public long? MaxConcatFileSize { get; set; } = null;
+
         private DateTimeOffset? _systemTime;
 
-        internal void MockSystemTime(DateTimeOffset systemTime)
+        internal void MockSystemTime(DateTimeOffset? systemTime)
         {
             _systemTime = systemTime;
         }
@@ -32,4 +36,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         }
     }
 }
-#endif

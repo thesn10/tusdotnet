@@ -1,11 +1,13 @@
-﻿#if endpointrouting
-
-namespace tusdotnet.ExternalMiddleware.EndpointRouting
+﻿namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// Context for the Delete action
+    /// </summary>
     public class DeleteContext
     {
-        public string FileId { get; internal set; }
+        /// <summary>
+        /// The file id of the request
+        /// </summary>
+        public string FileId { get; set; }
     }
 }
-
-#endif

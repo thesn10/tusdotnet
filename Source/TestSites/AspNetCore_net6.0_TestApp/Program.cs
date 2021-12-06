@@ -22,7 +22,7 @@ app.UseHttpsRedirection();
 
 app.MapGet("/files/{fileId}", DownloadFileEndpoint.HandleRoute);
 
-app.MapTusController<MyTusController>("/files");
+app.MapTusControllerRoute<MyTusController>("/files/{fileId?}");
 // or
 //app.MapTus("/files", options => MyTusEndpoint.ConfigureTus(options, app));
 
@@ -36,8 +36,8 @@ static void AddAuthorization(WebApplicationBuilder builder)
 
 static void AddTus(WebApplicationBuilder builder)
 {
-    // to use tus controllers
-    //builder.Services.AddMvcCore();
-
-    builder.Services.AddTus().AddController<MyTusController>().AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), true).AddEndpointServices();
+    builder.Services.AddTus()
+        .AddController<MyTusController>()
+        .AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), true);
+        //.AddEndpointServices();
 }

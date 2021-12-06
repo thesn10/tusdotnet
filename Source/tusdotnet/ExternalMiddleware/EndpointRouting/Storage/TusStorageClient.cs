@@ -27,9 +27,24 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         public ITusStore Store => _storeAdapter.Store;
 
+        /// <summary>
+        /// The StoreAdapter
+        /// </summary>
+        public StoreAdapter StoreAdapter => _storeAdapter;
+
         internal TusStorageClient(ITusStore store)
         {
             _storeAdapter = new StoreAdapter(store);
+        }
+
+        /// <summary>
+        /// Creates a new TusStorageClient using an <see cref="ITusStore"/>. 
+        /// If you want to reuse configurated <see cref="ITusStore"/>s, 
+        /// use <see cref="ITusStorageClientProvider.Get(string)"/>
+        /// </summary>
+        public static TusStorageClient Create(ITusStore store)
+        {
+            return new TusStorageClient(store);
         }
 
         /// <summary>
@@ -37,7 +52,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         /// <exception cref="TusStoreException"></exception>
         public Task<CreateResult> Create(long uploadLength, string uploadMetadata, bool isPartialFile = false,
-            CreateOptions options = default, CancellationToken cancellationToken = default)
+            CreateOptions? options = default, CancellationToken cancellationToken = default)
         {
             options ??= new CreateOptions();
 
@@ -50,7 +65,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// Creates a file from multiple partial files
         /// </summary>
         public Task<CreateResult> Create(string[] partialFiles, string uploadMetadata,
-            CreateOptions options = default, CancellationToken cancellationToken = default)
+            CreateOptions? options = default, CancellationToken cancellationToken = default)
         {
             options ??= new CreateOptions();
 
@@ -64,7 +79,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         /// <exception cref="TusFileAlreadyInUseException"></exception>
         /// <exception cref="TusFileNotFoundException"></exception>
-        /// <exception cref="TusDeferLengthException"></exception>
+        /// <exception cref="TusUploadLengthException"></exception>
         /// <exception cref="TusInvalidConcatException"></exception>
         /// <exception cref="TusChecksumException"></exception>
         /// <exception cref="TusFileExpiredException"></exception>
@@ -72,26 +87,26 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <exception cref="TusFileAlreadyCompleteException"></exception>
         /// <exception cref="TusConfigurationException"></exception>
         /// <exception cref="TusStoreException"></exception>
-        public Task<WriteResult> Write(string fileId, Stream requestStream, long uploadOffset, long? uploadLength, 
-            WriteOptions options = default, CancellationToken cancellationToken = default)
+        public Task<WriteResult> Write(string fileId, Stream requestStream, long uploadOffset, long? uploadLength, bool assumeFileCreated,
+            WriteOptions? options = default, CancellationToken cancellationToken = default)
         {
             options ??= new WriteOptions();
 
             var writeOp = new WriteOperationHandler(_storeAdapter);
 
-            return writeOp.Write(fileId, requestStream, uploadOffset, uploadLength, options, cancellationToken);
+            return writeOp.Write(fileId, requestStream, uploadOffset, uploadLength, assumeFileCreated, options, cancellationToken);
         }
 
 #if pipelines
-        /// <inheritdoc cref="Write(string, Stream, long, long?, WriteOptions, CancellationToken)"/>
-        public Task<WriteResult> Write(string fileId, PipeReader requestReader, long uploadOffset, long? uploadLength,
-            WriteOptions options = default, CancellationToken cancellationToken = default)
+        /// <inheritdoc cref="Write(string, Stream, long, long?, bool, WriteOptions, CancellationToken)"/>
+        public Task<WriteResult> Write(string fileId, PipeReader requestReader, long uploadOffset, long? uploadLength, bool assumeFileCreated,
+            WriteOptions? options = default, CancellationToken cancellationToken = default)
         {
             options ??= new WriteOptions();
 
             WriteOperationHandler writeOp = new WriteOperationHandler(_storeAdapter);
 
-            return writeOp.Write(fileId, requestReader, uploadOffset, uploadLength, options, cancellationToken);
+            return writeOp.Write(fileId, requestReader, uploadOffset, uploadLength, assumeFileCreated, options, cancellationToken);
         }
 #endif
 
@@ -101,15 +116,32 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <exception cref="TusFileNotFoundException"></exception>
         /// <exception cref="TusFileExpiredException"></exception>
         /// <exception cref="TusStoreException"></exception>
-        public async Task Delete(string fileId, CancellationToken cancellationToken = default)
+        public async Task Delete(string fileId, DeleteOptions? options = default, CancellationToken cancellationToken = default)
         {
+            options ??= new DeleteOptions();
+
             var validator = new StorageValidator(
                 new FileExist(fileId),
                 new FileHasNotExpired(fileId));
 
             await validator.Validate(_storeAdapter, cancellationToken);
 
-            await _storeAdapter.DeleteFileAsync(fileId, cancellationToken);
+            var fileLock = await options.FileLockProvider.AquireLock(fileId);
+            var hasLock = await fileLock.Lock();
+
+            if (!hasLock)
+            {
+                throw new TusFileAlreadyInUseException(fileId);
+            }
+
+            try
+            {
+                await _storeAdapter.DeleteFileAsync(fileId, cancellationToken);
+            }
+            finally
+            {
+                await fileLock.ReleaseIfHeld();
+            }
         }
 
         /// <summary>
@@ -134,7 +166,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// <summary>
         /// Gets the extension information
         /// </summary>
-        public async Task<TusExtensionInfo> GetExtensionInfo(CancellationToken cancellationToken = default)
+        public Task<TusExtensionInfo> GetExtensionInfo(CancellationToken cancellationToken = default)
         {
             TusExtensionInfo extensionInfo = new TusExtensionInfo()
             {
@@ -143,21 +175,20 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             if (_storeAdapter.Extensions.Checksum)
             {
-                var algos = await _storeAdapter.GetSupportedAlgorithmsAsync(cancellationToken);
-                extensionInfo.SupportedChecksumAlgorithms.AddRange(algos);
+                extensionInfo.GetSupportedChecksumAlgorithmsFunc = _storeAdapter.GetSupportedAlgorithmsAsync;
             }
 
-            return extensionInfo;
+            return Task.FromResult(extensionInfo);
         }
 
         /// <inheritdoc cref="Create(long, string, bool, CreateOptions, CancellationToken)"/>
-        public Task<CreateResult> Create(CreateContext context, CreateOptions options = default, CancellationToken cancellationToken = default)
+        public Task<CreateResult> Create(CreateContext context, CreateOptions? options = default, CancellationToken cancellationToken = default)
         {
-            if (context.FileConcat is FileConcatPartial)
+            if (context.FileConcatenation is FileConcatPartial)
             {
                 return Create(context.UploadLength, context.UploadMetadata, true, options, cancellationToken);
             }
-            else if (context.FileConcat is FileConcatFinal final)
+            else if (context.FileConcatenation is FileConcatFinal final)
             {
                 return Create(final.Files, context.UploadMetadata, options, cancellationToken);
             }
@@ -167,13 +198,13 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             }
         }
 
-        /// <inheritdoc cref="Write(string, Stream, long, long?, WriteOptions, CancellationToken)"/>
-        public Task<WriteResult> Write(WriteContext context, WriteOptions options = default, CancellationToken cancellationToken = default)
+        /// <inheritdoc cref="Write(string, Stream, long, long?, bool, WriteOptions, CancellationToken)"/>
+        public Task<WriteResult> Write(WriteContext context, WriteOptions? options = default, CancellationToken cancellationToken = default)
         {
 #if pipelines
             if (_storeAdapter.Features.Pipelines && options.UsePipelinesIfAvailable)
             {
-                return Write(context.FileId, context.RequestReader, context.UploadOffset, context.UploadLength, new WriteOptions()
+                return Write(context.FileId, context.RequestReader, context.UploadOffset, context.UploadLength, context.IsCreationWithUpload, new WriteOptions()
                 {
                     Expiration = options.Expiration,
                     FileLockProvider = options.FileLockProvider,
@@ -183,7 +214,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             else
 #endif
             {
-                return Write(context.FileId, context.RequestStream, context.UploadOffset, context.UploadLength, new WriteOptions()
+                return Write(context.FileId, context.RequestStream, context.UploadOffset, context.UploadLength, context.IsCreationWithUpload, new WriteOptions()
                 {
                     Expiration = options.Expiration,
                     FileLockProvider = options.FileLockProvider,
@@ -192,10 +223,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             }
         }
 
-        /// <inheritdoc cref="Delete(string, CancellationToken)"/>
-        public Task Delete(DeleteContext context, CancellationToken cancellationToken = default)
+        /// <inheritdoc cref="Delete(string,  DeleteOptions, CancellationToken)"/>
+        public Task Delete(DeleteContext context, DeleteOptions? options = default, CancellationToken cancellationToken = default)
         {
-            return Delete(context.FileId, cancellationToken);
+            return Delete(context.FileId, options, cancellationToken);
         }
 
         /// <inheritdoc cref="GetFileInfo(string, CancellationToken)"/>

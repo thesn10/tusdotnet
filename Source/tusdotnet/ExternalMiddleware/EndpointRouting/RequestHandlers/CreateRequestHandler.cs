@@ -1,5 +1,5 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -69,7 +69,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 UploadMetadata = metadata,
                 Metadata = _metadataFromRequirement,
                 UploadLength = uploadLength,
-                FileConcat = null,
+                FileConcatenation = null,
             };
 
             ICreateResult createResult;
@@ -86,6 +86,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 return createResult;
 
             var isEmptyFile = createContext.UploadLength == 0;
+            var hasData = HttpContext.Request.ContentType == "application/offset+octet-stream";
 
             if (isEmptyFile)
             {
@@ -104,24 +105,54 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 
                 return createOk;
             }
-            else
+            else if (hasData)
             {
-                if (HttpContext.Request.Headers.ContentLength > 0)
-                {
-                    // creation-with-upload
-                    var writeHandler = new WriteRequestHandler(_context, _controller, createOk.FileId);
-                    var writeResult = await writeHandler.Invoke();
+                // creation-with-upload
+                var writeHandler = new WriteRequestHandler(_context, _controller, createOk.FileId, true);
+                var writeValidator = new RequestValidator(writeHandler.Requires);
 
-                    if (writeResult is TusWriteStatusResult writeOk)
-                    {
-                        createOk.Expires = writeOk.FileExpires;
-                        createOk.UploadOffset = writeOk.UploadOffset;
-                    }
+                var authorizeContext = new AuthorizeContext()
+                {
+                    IntentType = IntentType.WriteFile,
+                    ControllerMethod = AuthorizeContext.GetControllerActionMethodInfo(IntentType.WriteFile, _controller),
+                    FileId = createOk.FileId,
+                    RequestHandler = this,
+                };
+
+                var authorizeResult = await _controller.Authorize(authorizeContext);
+
+                if (!authorizeResult.IsSuccessResult)
+                {
+                    createOk.UploadOffset = 0;
+                    return createOk;
                 }
 
-                return createOk;
+                var validateResult = await writeValidator.Validate(_context);
+
+                if (!validateResult.IsSuccessResult)
+                {
+                    createOk.UploadOffset = 0;
+                    return createOk;
+                }
+
+                var writeResult = await writeHandler.Invoke();
+
+                if (writeResult is TusWriteStatusResult writeOk)
+                {
+                    createOk.FileExpires = writeOk.FileExpires;
+                    createOk.UploadOffset = writeOk.UploadOffset;
+                }
+                else if (writeResult is TusStatusCodeResult statusCodeResult && statusCodeResult.Exception is TusIncompleteWriteException incompleteWriteEx)
+                {
+                    createOk.UploadOffset = incompleteWriteEx.UploadOffset;
+                }
+                else if (!writeResult.IsSuccessResult)
+                {
+                    createOk.UploadOffset = 0;
+                }
             }
+
+            return createOk;
         }
     }
 }
-#endif

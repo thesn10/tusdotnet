@@ -3,17 +3,14 @@
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Threading.Tasks;
-using tusdotnet.Adapters;
-using tusdotnet.ExternalMiddleware.Core;
 using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
 using tusdotnet.Helpers;
-using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
     /// <summary>
-    /// A builtin tus controller which is used by endpoints.MapTus()
+    /// A builtin tus controller which is used by endpoints.MapTus() and the Middleware
     /// </summary>
     [TusController]
     internal sealed class EventsBasedTusController : TusControllerBase, IControllerWithOptions<TusSimpleEndpointOptions>
@@ -22,13 +19,11 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         public override async Task<ICreateResult> Create(CreateContext context)
         {
-            this.StorageClient = await StorageClientProvider.Get(Options.StorageProfile);
-
             var onBeforeCreateResult = await Notify<BeforeCreateContext>(null, ctx =>
             {
                 ctx.Metadata = context.Metadata;
                 ctx.UploadLength = context.UploadLength;
-                ctx.FileConcatenation = context.FileConcat;
+                ctx.FileConcatenation = context.FileConcatenation;
             });
 
             if (onBeforeCreateResult != null && onBeforeCreateResult.HasFailed)
@@ -36,16 +31,20 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 return StatusCode(onBeforeCreateResult.StatusCode, onBeforeCreateResult.ErrorMessage);
             }
 
-            var createResult = await StorageClient.Create(context, new CreateOptions()
+            var createOptions = new CreateOptions()
             {
                 Expiration = Options.Expiration,
+                MaxConcatFileSize = Options.MaxAllowedUploadSizeInBytes,
+            };
 
-            });
+            createOptions.MockSystemTime(Options.MockedTime);
+
+            var createResult = await StorageClient.Create(context, createOptions, HttpContext.RequestAborted);
 
             await Notify<CreateCompleteContext>(createResult.FileId, ctx =>
             {
                 ctx.FileId = createResult.FileId;
-                ctx.FileConcatenation = context.FileConcat;
+                ctx.FileConcatenation = context.FileConcatenation;
                 ctx.Metadata = context.Metadata;
                 ctx.UploadLength = context.UploadLength;
             });
@@ -55,40 +54,46 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         public override async Task<IWriteResult> Write(WriteContext context)
         {
-            this.StorageClient = await StorageClientProvider.Get(Options.StorageProfile);
-
-            var writeResult = await StorageClient.Write(context, new WriteOptions()
+            var writeOptions = new WriteOptions()
             {
                 Expiration = Options.Expiration,
                 FileLockProvider = Options.FileLockProvider,
 #if pipelines
                 UsePipelinesIfAvailable = Options.UsePipelinesIfAvailable,
 #endif
+            };
 
-            }, HttpContext.RequestAborted);
+            writeOptions.MockSystemTime(Options.MockedTime);
+
+            var writeResult = await StorageClient.Write(context, writeOptions, HttpContext.RequestAborted);
 
             return WriteStatus(writeResult);
         }
 
         public override async Task<ISimpleResult> FileCompleted(FileCompletedContext context)
         {
-            var contextAdapter = ContextAdapterBuilder.FromHttpContext(HttpContext, new DefaultTusConfiguration()
+            if (Options.OnUploadCompleteAsync == null && Options.Events?.OnFileCompleteAsync == null)
             {
-                Store = StorageClient.Store,
-                Events = Options.Events,
-                Expiration = Options.Expiration,
-                UrlPath = UrlPath,
-            });
+                return Ok();
+            }
 
-            await EventHelper.NotifyFileComplete(contextAdapter);
+            var eventContext = FileCompleteContext.Create(context.FileId, HttpContext, StorageClient.Store, HttpContext.RequestAborted);
+
+            if (Options.OnUploadCompleteAsync != null)
+            {
+                await Options.OnUploadCompleteAsync(eventContext.FileId, eventContext.Store, eventContext.CancellationToken);
+            }
+
+            if (Options.OnUploadCompleteAsync != null)
+            {
+                await Options.Events.OnFileCompleteAsync(eventContext);
+            }
 
             return Ok();
         }
 
         public override async Task<IFileInfoResult> GetFileInfo(GetFileInfoContext context)
         {
-            this.StorageClient = await StorageClientProvider.Get(Options.StorageProfile);
-
             var info = await StorageClient.GetFileInfo(context);
 
             return FileInfo(info);
@@ -103,7 +108,11 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 return StatusCode(onBeforeDelete.StatusCode, onBeforeDelete.ErrorMessage);
             }
 
-            await StorageClient.Delete(context, HttpContext.RequestAborted);
+            await StorageClient.Delete(context, new DeleteOptions() 
+            { 
+                FileLockProvider = Options.FileLockProvider
+
+            }, HttpContext.RequestAborted);
 
             await Notify<DeleteCompleteContext>(context.FileId);
 
@@ -124,7 +133,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             }
             return Ok();
         }
-
 
         private async Task<T> Notify<T>(string fileId, Action<T> configure = null) where T : EventContext<T>, new()
         {

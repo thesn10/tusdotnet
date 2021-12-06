@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using tusdotnet.Models.Concatenation;
+﻿using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -12,4 +10,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
     }
 }
-#endif

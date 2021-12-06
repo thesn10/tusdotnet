@@ -23,6 +23,7 @@
     <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <LangVersion>latest</LangVersion>
+	<Nullable>annotations</Nullable>
   </PropertyGroup>
 
   <!-- SourceLink -->

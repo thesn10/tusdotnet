@@ -3,6 +3,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using tusdotnet.Models.Concatenation;
+using tusdotnet.Routing;
 
 namespace tusdotnet.Parsers.UploadConcatParserHelpers
 {
@@ -12,7 +13,7 @@ namespace tusdotnet.Parsers.UploadConcatParserHelpers
         private static readonly ReadOnlyMemory<char> _httpsProtocol = "https://".AsMemory();
         private static readonly FileConcatPartial _partial = new();
 
-        internal static UploadConcatParserResult ParseAndValidate(string uploadConcatHeader, string urlPath)
+        internal static UploadConcatParserResult ParseAndValidate(string uploadConcatHeader, ITusRoutingHelper routingHelper)
         {
             var span = uploadConcatHeader.AsSpan();
 
@@ -23,13 +24,13 @@ namespace tusdotnet.Parsers.UploadConcatParserHelpers
 
             if (IsFinal(span))
             {
-                return ParseFinal(span, urlPath.AsSpan());
+                return ParseFinal(span, routingHelper);
             }
 
             return UploadConcatParserResult.FromError(UploadConcatParserErrorTexts.HEADER_IS_INVALID);
         }
 
-        private static UploadConcatParserResult ParseFinal(ReadOnlySpan<char> span, ReadOnlySpan<char> urlPath)
+        private static UploadConcatParserResult ParseFinal(ReadOnlySpan<char> span, ITusRoutingHelper routingHelper)
         {
             var indexOfFileListStart = span.IndexOf(';') + 1;
 
@@ -44,16 +45,14 @@ namespace tusdotnet.Parsers.UploadConcatParserHelpers
 
                 var fileUri = indexOfSpace == -1 ? span : span[0..indexOfSpace];
 
-                var localPath = GetLocalPath(fileUri);
+                var fileId = routingHelper.ParseFileId(fileUri.ToString());
 
-                if (localPath.IsEmpty || !localPath.StartsWith(urlPath))
+                if (fileId == null)
                 {
                     return UploadConcatParserResult.FromError(UploadConcatParserErrorTexts.HEADER_IS_INVALID);
                 }
 
-                var fileId = ExtractFileId(localPath, urlPath);
-
-                fileIds[fileIdIndex++] = fileId.ToString();
+                fileIds[fileIdIndex++] = fileId;
 
                 span = indexOfSpace == -1 ? ReadOnlySpan<char>.Empty : span[indexOfSpace..].Trim(' ');
             }

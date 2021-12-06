@@ -1,5 +1,4 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Linq;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
@@ -40,24 +39,25 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         internal override RequestRequirement[] Requires => new RequestRequirement[]
         {
             new ContentType(),
-            new UploadOffset(),
+            _isCreationWithUpload ? null : new UploadOffset(),
             new UploadChecksumHeader(GetChecksumFromContext(HttpContext, false))
         };
 
         private readonly string _fileId;
+        private readonly bool _isCreationWithUpload;
 
-        internal WriteRequestHandler(TusContext context, TusControllerBase controller, string fileId)
+        internal WriteRequestHandler(TusContext context, TusControllerBase controller, string fileId, bool isCreationWithUpload = false)
             : base(context, controller)
         {
             _fileId = fileId;
+            _isCreationWithUpload = isCreationWithUpload;
         }
 
         internal override async Task<ITusActionResult> Invoke()
         {
             long? uploadLength = null;
-            if (HttpContext.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
+            if (!_isCreationWithUpload && HttpContext.Request.Headers.ContainsKey(HeaderConstants.UploadLength))
             {
-                // creation-defer-length
                 uploadLength = long.Parse(HttpContext.Request.Headers[HeaderConstants.UploadLength].First());
             }
 
@@ -68,19 +68,23 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             }
             else
             {
-                // creation-with-upload
+                // assert _isCreationWithUpload == true
+
                 uploadOffset = 0;
             }
 
             var writeContext = new WriteContext
             {
                 FileId = _fileId,
-                // Callback to later support trailing checksum headers
+                // Callback to support trailing checksum headers
                 GetChecksumProvidedByClient = () => Task.FromResult(GetChecksumFromContext(HttpContext)),
                 RequestStream = HttpContext.Request.Body,
+#if pipelines
                 RequestReader = HttpContext.Request.BodyReader,
+#endif
                 UploadOffset = uploadOffset,
                 UploadLength = uploadLength,
+                IsCreationWithUpload = _isCreationWithUpload,
             };
 
             IWriteResult writeResult = null;
@@ -90,13 +94,16 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                return new TusStatusCodeResult(ex.StatusCode, ex.Message)
+                {
+                    Exception = ex,
+                };
             }
 
             if (writeResult is TusWriteStatusResult writeOk)
             {
                 var isEmptyFile = writeContext.UploadLength == 0;
-                var isPartialFile = writeOk.FileConcat is FileConcatPartial;
+                var isPartialFile = writeOk.FileConcatenation is FileConcatPartial;
 
                 if (writeOk.IsComplete && !isPartialFile && !isEmptyFile)
                 {
@@ -129,6 +136,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 return new Checksum(header);
             }
 
+#if trailingheaders
             if (canBeTrailing && context.Request.HasDeclaredTrailingUploadChecksumHeader())
             {
                 header = context.Request.GetTrailingUploadChecksumHeader();
@@ -138,9 +146,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                     return new Checksum(header);
                 }
             }
+#endif
 
             return null;
         }
     }
 }
-#endif

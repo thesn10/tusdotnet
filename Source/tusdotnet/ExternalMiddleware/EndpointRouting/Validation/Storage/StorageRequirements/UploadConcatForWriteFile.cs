@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Helpers;
 using tusdotnet.Models.Concatenation;
@@ -31,7 +32,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
 
             if (uploadConcat is FileConcatFinal)
             {
-                throw new TusInvalidConcatException("File with \"Upload-Concat: final\" cannot be patched");
+                throw new TusInvalidConcatException("File with \"Upload-Concat: final\" cannot be patched", HttpStatusCode.Forbidden);
             }
         }
     }

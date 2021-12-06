@@ -3,8 +3,8 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using tusdotnet.Adapters;
-using tusdotnet.ExternalMiddleware.Core;
 using tusdotnet.Models;
+using tusdotnet.Routing;
 
 #if endpointrouting
 using tusdotnet.ExternalMiddleware.EndpointRouting;
@@ -56,6 +56,8 @@ namespace tusdotnet
 
 #if endpointrouting
 
+            config.Validate();
+
             var options = new TusSimpleEndpointOptions()
             {
                 Events = config.Events,
@@ -64,9 +66,15 @@ namespace tusdotnet
                 MetadataParsingStrategy = config.MetadataParsingStrategy,
                 UsePipelinesIfAvailable = config.UsePipelinesIfAvailable,
                 FileLockProvider = config.FileLockProvider,
+                MockedTime = config.MockedTime,
+
+#pragma warning disable CS0618 // Type or member is obsolete
+                OnUploadCompleteAsync = config.OnUploadCompleteAsync,
+#pragma warning restore CS0618 // Type or member is obsolete
             };
 
-            var storageClientProvider = new StaticTusStorageClientProvider(config.Store);
+            var storageClientProvider = new SingleStorageClientProvider(config.Store);
+            var routingHelperFactory = new TusUrlPathRoutingHelperFactory(config.UrlPath);
 
             var controller = new EventsBasedTusController()
             {
@@ -75,11 +83,13 @@ namespace tusdotnet
 
             var handler = new TusProtocolHandlerEndpointBased(options)
             {
-                UrlPath = config.UrlPath,
+                Controller = controller,
+                StorageClientProvider = storageClientProvider,
+                RoutingHelperFactory = routingHelperFactory,
                 Next = _next,
             };
 
-            await handler.Invoke(context, storageClientProvider, controller);
+            await handler.Invoke(context);
 
 #else
             var request = CreateRequestAdapter(context, config, requestUri);

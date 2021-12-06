@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -22,12 +20,12 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             _metadataParsingStrategy = metadataParsingStrategy;
         }
 
-        public override Task<(HttpStatusCode status, string error)> Validate(TusExtensionInfo extensionInfo, HttpContext context)
+        public override Task<ITusActionResult> Validate(TusExtensionInfo extensionInfo, HttpContext context)
         {
             if (!context.Request.Headers.ContainsKey(HeaderConstants.UploadMetadata))
             {
                 _cacheResult?.Invoke(new Dictionary<string, Metadata>());
-                return Task.FromResult(Ok());
+                return OkTask();
             }
 
             var metadataParserResult = MetadataParser.ParseAndValidate(
@@ -37,11 +35,10 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             if (metadataParserResult.Success)
             {
                 _cacheResult?.Invoke(metadataParserResult.Metadata);
-                return Task.FromResult(Ok());
+                return OkTask();
             }
 
             return BadRequestTask(metadataParserResult.ErrorMessage);
         }
     }
 }
-#endif

@@ -1,11 +1,8 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
-using System.Linq;
+﻿using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.Extensions;
-using tusdotnet.Helpers;
 using tusdotnet.Models;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
@@ -23,7 +20,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             _checksum = checksum;
         }
 
-        public override Task<(HttpStatusCode status, string error)> Validate(TusExtensionInfo extensionInfo, HttpContext context)
+        public override Task<ITusActionResult> Validate(TusExtensionInfo extensionInfo, HttpContext context)
         {
             if (!extensionInfo.SupportedExtensions.Checksum)
             {
@@ -35,6 +32,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
                 return BadRequestTask($"Could not parse {HeaderConstants.UploadChecksum} header");
             }
 
+#if trailingheaders
+
             var hasDeclaredChecksumTrailer = context.Request.HasDeclaredTrailingUploadChecksumHeader();
             if (_checksum != null && hasDeclaredChecksumTrailer)
             {
@@ -45,9 +44,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             {
                 return BadRequestTask("Trailing header Upload-Checksum has been specified but http request does not support trailing headers");
             }
+#endif
 
             return OkTask();
         }
     }
 }
-#endif

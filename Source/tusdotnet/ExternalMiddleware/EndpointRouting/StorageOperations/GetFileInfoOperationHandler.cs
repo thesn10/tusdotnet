@@ -32,7 +32,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.StorageOperations
 
             if (_storeAdapter.Extensions.Concatenation)
             {
-                getFileInfoResult.UploadConcat = await _storeAdapter.GetUploadConcatAsync(fileId, cancellationToken);
+                getFileInfoResult.FileConcatenation = await _storeAdapter.GetUploadConcatAsync(fileId, cancellationToken);
             }
 
             return getFileInfoResult;

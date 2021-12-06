@@ -2,14 +2,14 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using System.Security.Claims;
 using System;
-using tusdotnet.Models.Concatenation;
-using System.Reflection;
 using System.Net;
+using System.Reflection;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using tusdotnet.Models;
+using tusdotnet.Models.Concatenation;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -54,11 +54,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public ITusEndpointOptions EndpointOptions => TusContext?.Options!;
 
         /// <summary>
-        /// Gets the configured url path of the controller for example: "/files".
-        /// </summary>
-        public string UrlPath => TusContext?.UrlPath!;
-
-        /// <summary>
         /// Gets information about the supported tus extensions.
         /// </summary>
         public TusExtensionInfo ExtensionInfo => TusContext?.ExtensionInfo;
@@ -81,8 +76,13 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </remarks>
         public ITusStorageClientProvider StorageClientProvider { get; internal set; }
 
+        /// <summary>
+        /// Called on a create request
+        /// </summary>
         public virtual async Task<ICreateResult> Create(CreateContext context)
         {
+            EnsureStorageClientNotNull(nameof(Create));
+
             var createResult = await StorageClient.Create(context, new CreateOptions()
             {
                 Expiration = this.GetType().GetCustomAttribute<TusFileExpirationAttribute>()?.Expiration,
@@ -92,8 +92,13 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return CreateStatus(createResult);
         }
 
+        /// <summary>
+        /// Called on a write request
+        /// </summary>
         public virtual async Task<IWriteResult> Write(WriteContext context)
         {
+            EnsureStorageClientNotNull(nameof(Write));
+
             var writeResult = await StorageClient.Write(context, new WriteOptions()
             {
                 Expiration = this.GetType().GetCustomAttribute<TusFileExpirationAttribute>()?.Expiration,
@@ -106,23 +111,36 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return WriteStatus(writeResult);
         }
 
+        /// <summary>
+        /// Called on a delete request
+        /// </summary>
         public virtual async Task<ISimpleResult> Delete(DeleteContext context)
         {
-            await StorageClient.Delete(context, HttpContext.RequestAborted);
+            EnsureStorageClientNotNull(nameof(Delete));
+
+            await StorageClient.Delete(context, cancellationToken: HttpContext.RequestAborted);
 
             return Ok();
         }
 
+        /// <summary>
+        /// Get information about a file
+        /// </summary>
         public virtual async Task<IFileInfoResult> GetFileInfo(GetFileInfoContext context)
         {
+            EnsureStorageClientNotNull(nameof(GetFileInfo));
+
             var info = await StorageClient.GetFileInfo(context, HttpContext.RequestAborted);
 
             return FileInfo(info);
         }
 
-        public virtual async Task<ISimpleResult> FileCompleted(FileCompletedContext context)
+        /// <summary>
+        /// Called when a file upload is completed
+        /// </summary>
+        public virtual Task<ISimpleResult> FileCompleted(FileCompletedContext context)
         {
-            return Ok();
+            return Task.FromResult<ISimpleResult>(Ok());
         }
 
         /// <summary>
@@ -130,7 +148,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         public virtual async Task<TusExtensionInfo> GetOptions()
         {
-            var extensionInfo = await StorageClient?.GetExtensionInfo(HttpContext.RequestAborted);
+            EnsureStorageClientNotNull(nameof(GetOptions));
+
+            var extensionInfo = await StorageClient.GetExtensionInfo(HttpContext.RequestAborted);
 
             var disabledExts = GetType().GetCustomAttribute<TusDisableExtensionAttribute>()?.ExtensionNames;
             if (disabledExts != null)
@@ -144,6 +164,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return extensionInfo;
         }
 
+        /// <summary>
+        /// Authorize an controller action
+        /// </summary>
         public virtual async Task<ISimpleResult> Authorize(AuthorizeContext context)
         {
             var authService = HttpContext.RequestServices.GetService<IAuthorizationService>();
@@ -166,27 +189,66 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return Ok();
         }
 
-        protected ICreateResult CreateStatus(CreateResult result) 
-            => new TusCreateStatusResult(result);
-        protected ICreateResult CreateStatus(string fileId, DateTimeOffset? expires = null) 
-            => new TusCreateStatusResult(fileId, expires);
+        private void EnsureStorageClientNotNull(string methodName)
+        {
+            if (StorageClient == null)
+                throw new TusConfigurationException(
+                    $"No storage client is configured for {GetType().FullName}. Implement virtual controller method \"{methodName}\" yourself or configure a storage client.");
+        }
 
-        protected IWriteResult WriteStatus(WriteResult result) => new TusWriteStatusResult(result);
-        protected IWriteResult WriteStatus(bool isComplete, long uploadOffset, bool clientDisconnectedDuringRead, DateTimeOffset? fileExpires = null, FileConcat? fileConcat = null) => 
-            new TusWriteStatusResult(isComplete, uploadOffset, clientDisconnectedDuringRead, fileExpires, fileConcat);
+        /// <summary>
+        /// Return a create status result
+        /// </summary>
+        protected TusCreateStatusResult CreateStatus(CreateResult result) => new TusCreateStatusResult(result);
+        /// <summary>
+        /// Return a create status result
+        /// </summary>
+        protected TusCreateStatusResult CreateStatus(string fileId, DateTimeOffset? expires = null) => new TusCreateStatusResult(fileId, expires);
 
-        protected IFileInfoResult FileInfo(GetFileInfoResult result)
-            => new TusFileInfoResult(result.UploadMetadata, result.UploadLength, result.UploadOffset, result.UploadConcat);
-        protected IFileInfoResult FileInfo(string uploadMetadata, long? uploadLength, long uploadOffset, FileConcat? uploadConcat = null)
+        /// <summary>
+        /// Return a write status result
+        /// </summary>
+        protected TusWriteStatusResult WriteStatus(WriteResult result) => new TusWriteStatusResult(result);
+        /// <summary>
+        /// Return a write status result
+        /// </summary>
+        protected TusWriteStatusResult WriteStatus(long uploadOffset, bool isComplete, DateTimeOffset? fileExpires = null, FileConcat? fileConcat = null) 
+            => new TusWriteStatusResult(uploadOffset, isComplete, fileExpires, fileConcat);
+
+        /// <summary>
+        /// Return a file info result
+        /// </summary>
+        protected TusFileInfoResult FileInfo(GetFileInfoResult result) => new TusFileInfoResult(result);
+        /// <summary>
+        /// Return a file info result
+        /// </summary>
+        protected TusFileInfoResult FileInfo(string uploadMetadata, long? uploadLength, long uploadOffset, FileConcat? uploadConcat = null)
             => new TusFileInfoResult(uploadMetadata, uploadLength, uploadOffset, uploadConcat);
 
+        /// <summary>
+        /// Return an OK result
+        /// </summary>
         protected TusOkResult Ok() => new TusOkResult();
+        /// <summary>
+        /// Return a 400 BadRequest result
+        /// </summary>
         protected TusBadRequestResult BadRequest() => new TusBadRequestResult();
+        /// <summary>
+        /// Return a 400 BadRequest result
+        /// </summary>
         protected TusBadRequestResult BadRequest(string error) => new TusBadRequestResult(error);
+        /// <summary>
+        /// Return a 403 Forbidden result
+        /// </summary>
         protected TusForbiddenResult Forbidden() => new TusForbiddenResult();
+        /// <summary>
+        /// Return a 401 Forbidden result
+        /// </summary>
         protected TusUnauthorizedResult Unauthorized() => new TusUnauthorizedResult();
+        /// <summary>
+        /// Return the specified status code. This may not be compliant with tus spec, use with caution!
+        /// </summary>
         protected TusStatusCodeResult StatusCode(HttpStatusCode statusCode, string message) => new TusStatusCodeResult(statusCode, message);
-
 
     }
 }

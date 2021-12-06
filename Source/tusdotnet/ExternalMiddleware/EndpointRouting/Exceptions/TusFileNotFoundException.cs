@@ -1,10 +1,7 @@
-﻿using System;
-using System.Net;
-using System.Runtime.Serialization;
+﻿using System.Net;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
-    [Serializable]
     public class TusFileNotFoundException : TusException
     {
         public TusFileNotFoundException() : base(HttpStatusCode.NotFound)

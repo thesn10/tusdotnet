@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using tusdotnet.Routing;
 
 namespace tusdotnet.Models.Concatenation
 {
@@ -37,7 +38,16 @@ namespace tusdotnet.Models.Concatenation
 		/// <param name="urlPath">The UrlPath property of the ITusConfiguration</param>
 		internal void AddUrlPathToFiles(string urlPath)
 		{
-			Files = Files.Select(file => $"{urlPath.TrimEnd('/')}/{file}").ToArray();
+			AddUrlPathToFiles(new TusUrlPathRoutingHelper(urlPath, null));
+		}
+
+		/// <summary>
+		/// Appends the url path that tusdotnet is listening to to each file.
+		/// This is done to give the client relative urls that can be used.
+		/// </summary>
+		internal void AddUrlPathToFiles(ITusRoutingHelper routingHelper)
+		{
+			Files = Files.Select(file => routingHelper.GenerateFilePath(file)).ToArray();
 		}
 	}
 }

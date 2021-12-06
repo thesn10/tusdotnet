@@ -1,4 +1,5 @@
 ﻿using tusdotnet.Parsers;
+using tusdotnet.Routing;
 
 namespace tusdotnet.Models.Concatenation
 {
@@ -50,10 +51,34 @@ namespace tusdotnet.Models.Concatenation
 				return;
 			}
 
-			var result = UploadConcatParser.ParseAndValidate(uploadConcat, urlPath);
+			var result = UploadConcatParser.ParseAndValidate(uploadConcat, new TusUrlPathRoutingHelper(urlPath, null));
 
 			IsValid = result.Success;
 			ErrorMessage= result.ErrorMessage;
+			Type = result.Type;
+		}
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="UploadConcat"/> class.
+		/// This overload removes relative urls from the file ids when parsing and is used by tusdotnet when parsing
+		/// the incoming Upload-Concat header.
+		/// </summary>
+		/// <param name="uploadConcat">The Upload-Concat header</param>
+		/// <param name="routingHelper">The RoutingHelper to parse url route and extract the file id parameter</param>
+		internal UploadConcat(string uploadConcat, ITusRoutingHelper routingHelper)
+		{
+			IsValid = true;
+
+			if (string.IsNullOrWhiteSpace(uploadConcat))
+			{
+				Type = null;
+				return;
+			}
+
+			var result = UploadConcatParser.ParseAndValidate(uploadConcat, routingHelper);
+
+			IsValid = result.Success;
+			ErrorMessage = result.ErrorMessage;
 			Type = result.Type;
 		}
 	}

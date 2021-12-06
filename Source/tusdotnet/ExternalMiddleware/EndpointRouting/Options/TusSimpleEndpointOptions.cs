@@ -1,5 +1,8 @@
 ﻿#if endpointrouting
 
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using tusdotnet.FileLocks;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
@@ -51,6 +54,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         public bool UsePipelinesIfAvailable { get; set; }
 
 #endif
+        internal DateTimeOffset? MockedTime { get; set; }
+
+        internal Func<string, ITusStore, CancellationToken, Task> OnUploadCompleteAsync { get; set; }
     }
 }
 #endif

@@ -1,5 +1,4 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -16,25 +15,21 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
 
         public async Task<ITusActionResult> Validate(TusContext context)
         {
-            HttpStatusCode statusCode = HttpStatusCode.OK;
-            string errorMessage = null;
+            ITusActionResult result = new TusOkResult();
 
             foreach (var spec in _requirements)
             {
-                var (status, error) = await spec.Validate(context.ExtensionInfo, context.HttpContext);
+                if (spec == null) continue;
 
-                if (status == HttpStatusCode.OK)
+                result = await spec.Validate(context.ExtensionInfo, context.HttpContext);
+
+                if (!result.IsSuccessResult)
                 {
-                    continue;
+                    break;
                 }
-
-                statusCode = status;
-                errorMessage = error;
-                break;
             }
 
-            return new TusStatusCodeResult(statusCode, errorMessage);
+            return result;
         }
     }
 }
-#endif

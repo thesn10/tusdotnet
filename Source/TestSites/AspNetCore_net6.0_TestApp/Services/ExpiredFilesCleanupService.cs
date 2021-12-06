@@ -1,5 +1,4 @@
 ﻿using tusdotnet.ExternalMiddleware.EndpointRouting;
-using tusdotnet.Interfaces;
 
 namespace AspNetCore_net6._0_TestApp.Services
 {
@@ -22,8 +21,11 @@ namespace AspNetCore_net6._0_TestApp.Services
             _timeout = TimeSpan.FromMinutes(Constants.FileExpirationInMinutes);
             _storageClient = await _storageClientProvider.Default();
 
-            await RunCleanup(cancellationToken);
-            _timer = new Timer(async (e) => await RunCleanup((CancellationToken)e), cancellationToken, TimeSpan.Zero, _timeout);
+            if (_storageClient.StoreAdapter.Extensions.Expiration)
+            {
+                await RunCleanup(cancellationToken);
+                _timer = new Timer(async (e) => await RunCleanup((CancellationToken)e), cancellationToken, TimeSpan.Zero, _timeout);
+            }
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
@@ -42,7 +44,7 @@ namespace AspNetCore_net6._0_TestApp.Services
             try
             {
                 _logger.LogInformation("Running cleanup job...");
-                var numberOfRemovedFiles = await (_storageClient.Store as ITusExpirationStore).RemoveExpiredFilesAsync(cancellationToken);
+                var numberOfRemovedFiles = await _storageClient.StoreAdapter.RemoveExpiredFilesAsync(cancellationToken);
                 _logger.LogInformation($"Removed {numberOfRemovedFiles} expired files. Scheduled to run again in {_timeout.TotalMilliseconds} ms");
             }
             catch (Exception exc)

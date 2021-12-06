@@ -2,6 +2,7 @@
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -10,8 +11,14 @@ using tusdotnet.Interfaces;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
+    /// <summary>
+    /// Tus service collection to configure tus services
+    /// </summary>
     public sealed class TusServiceCollection
     {
+        /// <summary>
+        /// Gets the <see cref="IServiceCollection"/> where tus services are configured
+        /// </summary>
         public IServiceCollection Services { get; }
 
         internal TusServiceCollection(IServiceCollection services)
@@ -19,6 +26,11 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             Services = services;
         }
 
+        /// <summary>
+        /// Adds a tus controller
+        /// </summary>
+        /// <typeparam name="TController"></typeparam>
+        /// <returns></returns>
         public TusServiceCollection AddController<TController>()
             where TController : TusControllerBase
         {
@@ -27,6 +39,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return this;
         }
 
+        /// <summary>
+        /// Adds all controllers in the given assembly
+        /// </summary>
         public TusServiceCollection AddControllersFromAssemblyOf<TType>()
         {
             var controllerTypes = Assembly.GetAssembly(typeof(TType)).GetTypes().Where(type =>
@@ -42,7 +57,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         }
 
         /// <summary>
-        /// Adds the neccessary services to use <see cref="TusEndpointBuilderExtensions.MapTusEndpoint(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder, string, System.Action{TusSimpleEndpointOptions})"/>
+        /// Adds the neccessary services to use <see cref="TusEndpointBuilderExtensions.MapTus(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder, string, System.Action{TusSimpleEndpointOptions})"/>
         /// </summary>
         /// <returns></returns>
         public TusServiceCollection AddEndpointServices()
@@ -51,42 +66,65 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             return this;
         }
 
+        /// <inheritdoc cref="AddStorage{TStoreConfigurator}(string, Func{IServiceProvider, TStoreConfigurator}, bool)"/>
         public TusServiceCollection AddStorage(string name, ITusStore store, bool isDefault = false)
         {
-            return AddStorage(name, new TusStorageProfile(store), isDefault);
+            return AddStorage(name, new DefaultStoreConfigurator(store), isDefault);
         }
 
-        public TusServiceCollection AddStorage(string name, Func<HttpContext, ITusStore> storeFunc, bool isDefault = false)
+        /// <inheritdoc cref="AddStorage{TStoreConfigurator}(string, Func{IServiceProvider, TStoreConfigurator}, bool)"/>
+        public TusServiceCollection AddStorage(string name, Func<HttpContext, ITusStore> configure, bool isDefault = false)
         {
-            return AddStorage(name, new TusStorageProfile(storeFunc), isDefault);
+            return AddStorage(name, (services) => new HttpContextStoreConfigurator(configure, services), isDefault);
         }
 
-        public TusServiceCollection AddStorage(string name, Func<HttpContext, Task<ITusStore>> storeFunc, bool isDefault = false)
+        /// <inheritdoc cref="AddStorage{TStoreConfigurator}(string, Func{IServiceProvider, TStoreConfigurator}, bool)"/>
+        public TusServiceCollection AddStorage(string name, Func<HttpContext, Task<ITusStore>> configure, bool isDefault = false)
         {
-            return AddStorage(name, new TusStorageProfile(storeFunc), isDefault);
+            return AddStorage(name, (services) => new HttpContextStoreConfigurator(configure, services), isDefault);
         }
 
-        public TusServiceCollection AddStorage<TProfile>(string name, bool isDefault = false) where TProfile : ITusStorageProfile, new()
+        /// <inheritdoc cref="AddStorage{TStoreConfigurator}(string, Func{IServiceProvider, TStoreConfigurator}, bool)"/>
+        public TusServiceCollection AddStorage<TStoreConfigurator>(string name, bool isDefault = false) where TStoreConfigurator : ITusStoreConfigurator
         {
-            return AddStorage(name, new TProfile(), isDefault);
+            return AddStorage(name, (services) => ActivatorUtilities.CreateInstance<TStoreConfigurator>(services), isDefault);
         }
 
-        public TusServiceCollection AddStorage<TProfile>(string name, TProfile profile, bool isDefault = false) where TProfile : ITusStorageProfile
+        /// <inheritdoc cref="AddStorage{TStoreConfigurator}(string, Func{IServiceProvider, TStoreConfigurator}, bool)"/>
+        public TusServiceCollection AddStorage<TStoreConfigurator>(string name, TStoreConfigurator configurator, bool isDefault = false) where TStoreConfigurator : ITusStoreConfigurator
         {
-            Services.Configure<TusStorageClientProviderOptions>((options) =>
+            return AddStorage(name, (_) => configurator, isDefault);
+        }
+
+        /// <summary>
+        /// Adds a storage profile
+        /// </summary>
+        public TusServiceCollection AddStorage<TStoreConfigurator>(string name, Func<IServiceProvider, TStoreConfigurator> configure, bool isDefault = false) where TStoreConfigurator : ITusStoreConfigurator
+        {
+            if (isDefault)
             {
-                options.Profiles.Add(name, profile);
-                if (isDefault) options.DefaultProfile = name;
+                SetDefaultStorage(name);
+            }
+
+            Services.AddTransient<IConfigureOptions<TusStorageClientConfiguratorOptions>>(services =>
+            {
+                return new ConfigureNamedOptions<TusStorageClientConfiguratorOptions>(name, options =>
+                {
+                    options.Configurator = configure(services);
+                });
             });
 
             return this;
         }
 
+        /// <summary>
+        /// Set the default storage to use
+        /// </summary>
         public TusServiceCollection SetDefaultStorage(string name)
         {
-            Services.Configure<TusStorageClientProviderOptions>((options) =>
+            Services.Configure<DefaultStorageClientProviderOptions>((options) =>
             {
-                options.DefaultProfile = name;
+                options.DefaultName = name;
             });
 
             return this;

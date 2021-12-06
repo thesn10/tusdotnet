@@ -204,7 +204,11 @@ namespace tusdotnet.test.Tests
             var response = await requestBuilder.PostAsync();
 
             response.StatusCode.ShouldBe(HttpStatusCode.Created, response.StatusCode.ToString());
-            response.ShouldContainHeader("Upload-Offset", "0");
+
+            if (headerName == "Upload-Checksum")
+            {
+                response.ShouldContainHeader("Upload-Offset", "0");
+            }
 
             await tusStore.DidNotReceiveWithAnyArgs().AppendDataAsync(default, default, default);
         }
@@ -299,8 +303,13 @@ namespace tusdotnet.test.Tests
 
             await tusStore.DidNotReceiveWithAnyArgs().AppendDataAsync(default, default, default);
         }
-
+#if endpointrouting
+#pragma warning disable xUnit1004 // Test methods should not be skipped
+        [Theory(Skip = "config.MockSystemTime is not available")]
+#pragma warning restore xUnit1004 // Test methods should not be skipped
+#else
         [Theory]
+#endif
         [MemberData(nameof(UploadConcatHeadersForNonFinalFiles))]
         public async Task Expiration_Is_Updated_After_File_Write_If_Sliding_Expiration_Is_Used(string uploadConcatHeader)
         {
@@ -457,6 +466,7 @@ namespace tusdotnet.test.Tests
             store.GetUploadLengthAsync(default, default).ReturnsForAnyArgs(uploadLength);
             store.GetUploadOffsetAsync(default, default).ReturnsForAnyArgs(0);
             store.AppendDataAsync(default, default, default).ReturnsForAnyArgs(bytesInRequestBody);
+            store.FileExistAsync(default, default).ReturnsForAnyArgs(true);
 
             using var server = TestServerFactory.Create(new DefaultTusConfiguration
             {

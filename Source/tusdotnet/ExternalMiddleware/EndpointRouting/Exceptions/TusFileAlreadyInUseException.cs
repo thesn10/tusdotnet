@@ -1,7 +1,4 @@
-﻿#if endpointrouting
-
-using System;
-using System.Net;
+﻿using System.Net;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -12,4 +9,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         }
     }
 }
-#endif

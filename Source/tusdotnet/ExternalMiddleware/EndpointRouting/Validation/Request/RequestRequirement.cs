@@ -1,5 +1,4 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -7,77 +6,76 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
 {
     internal abstract class RequestRequirement
     {
-        public abstract Task<(HttpStatusCode status, string error)> Validate(TusExtensionInfo extensionInfo, HttpContext context);
+        public abstract Task<ITusActionResult> Validate(TusExtensionInfo extensionInfo, HttpContext context);
 
-        protected (HttpStatusCode status, string error) Ok()
+        protected ITusActionResult Ok()
         {
-            return (HttpStatusCode.OK, null);
+            return new TusOkResult();
         }
 
-        protected (HttpStatusCode status, string error) Conflict(string errorMessage)
+        protected ITusActionResult Conflict(string errorMessage)
         {
-            return (HttpStatusCode.Conflict, errorMessage);
+            return new TusStatusCodeResult(HttpStatusCode.Conflict, errorMessage);
         }
 
-        protected (HttpStatusCode status, string error) BadRequest(string errorMessage)
+        protected ITusActionResult BadRequest(string errorMessage)
         {
-            return (HttpStatusCode.BadRequest, errorMessage);
+            return new TusStatusCodeResult(HttpStatusCode.BadRequest, errorMessage);
         }
 
-        protected (HttpStatusCode status, string error) RequestEntityTooLarge(string errorMessage)
+        protected ITusActionResult RequestEntityTooLarge(string errorMessage)
         {
-            return (HttpStatusCode.RequestEntityTooLarge, errorMessage);
+            return new TusStatusCodeResult(HttpStatusCode.RequestEntityTooLarge, errorMessage);
         }
 
-        protected (HttpStatusCode status, string error) Forbidden(string errorMessage)
+        protected ITusActionResult Forbidden(string errorMessage)
         {
-            return (HttpStatusCode.Forbidden, errorMessage);
+            return new TusStatusCodeResult(HttpStatusCode.Forbidden, errorMessage);
         }
 
-        protected (HttpStatusCode status, string error) NotFound()
+        protected ITusActionResult NotFound()
         {
-            return (HttpStatusCode.NotFound, null);
+            return new TusStatusCodeResult(HttpStatusCode.NotFound, null);
         }
 
-        protected (HttpStatusCode status, string error) UnsupportedMediaType(string errorMessage)
+        protected ITusActionResult UnsupportedMediaType(string errorMessage)
         {
-            return (HttpStatusCode.UnsupportedMediaType, errorMessage);
+            return new TusStatusCodeResult(HttpStatusCode.UnsupportedMediaType, errorMessage);
         }
 
-        protected Task<(HttpStatusCode status, string error)> OkTask()
+        protected Task<ITusActionResult> OkTask()
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.OK, null));
+            return Task.FromResult(Ok());
         }
 
-        protected Task<(HttpStatusCode status, string error)> ConflictTask(string errorMessage)
+        protected Task<ITusActionResult> ConflictTask(string errorMessage)
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.Conflict, errorMessage));
+            return Task.FromResult(Conflict(errorMessage));
         }
 
-        protected Task<(HttpStatusCode status, string error)> BadRequestTask(string errorMessage)
+        protected Task<ITusActionResult> BadRequestTask(string errorMessage)
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.BadRequest, errorMessage));
+            return Task.FromResult(BadRequest(errorMessage));
         }
 
-        protected Task<(HttpStatusCode status, string error)> RequestEntityTooLargeTask(string errorMessage)
+        protected Task<ITusActionResult> RequestEntityTooLargeTask(string errorMessage)
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.RequestEntityTooLarge, errorMessage));
+            return Task.FromResult(RequestEntityTooLarge(errorMessage));
         }
 
-        protected Task<(HttpStatusCode status, string error)> ForbiddenTask(string errorMessage)
+        protected Task<ITusActionResult> ForbiddenTask(string errorMessage)
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.Forbidden, errorMessage));
+            return Task.FromResult(Forbidden(errorMessage));
         }
 
-        protected Task<(HttpStatusCode status, string error)> NotFoundTask()
+        protected Task<ITusActionResult> NotFoundTask()
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.NotFound, null));
+            return Task.FromResult(NotFound());
         }
 
-        protected Task<(HttpStatusCode status, string error)> UnsupportedMediaTypeTask(string errorMessage)
+        protected Task<ITusActionResult> UnsupportedMediaTypeTask(string errorMessage)
         {
-            return Task.FromResult<(HttpStatusCode status, string error)>((HttpStatusCode.UnsupportedMediaType, errorMessage));
+            return Task.FromResult(UnsupportedMediaType(errorMessage));
         }
     }
 }
-#endif

@@ -1,5 +1,5 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
+using System.Linq;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
@@ -41,13 +41,13 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 HttpContext.Response.Headers.Add(HeaderConstants.TusExtension, string.Join(",", ExtensionInfo.SupportedExtensions.ToList()));
             }
 
-            if (ExtensionInfo.SupportedChecksumAlgorithms.Count > 0)
+            var supportedChecksumAlgorithms = await ExtensionInfo.GetSupportedChecksumAlgorithms(HttpContext.RequestAborted);
+            if (supportedChecksumAlgorithms.Any())
             {
-                HttpContext.Response.Headers.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", ExtensionInfo.SupportedChecksumAlgorithms));
+                HttpContext.Response.Headers.Add(HeaderConstants.TusChecksumAlgorithm, string.Join(",", supportedChecksumAlgorithms));
             }
 
             return new TusOkResult();
         }
     }
 }
-#endif

@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
@@ -16,7 +14,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             _maxUploadLength = maxUploadLength;
         }
 
-        public override Task<(HttpStatusCode status, string error)> Validate(TusExtensionInfo extensionInfo, HttpContext context)
+        public override Task<ITusActionResult> Validate(TusExtensionInfo extensionInfo, HttpContext context)
         {
             var hasUploadDeferLengthHeader = context.Request.Headers.TryGetValue(HeaderConstants.UploadDeferLength, out var uploadDeferLengthHeader);
             var hasUploadLengthHeader = context.Request.Headers.TryGetValue(HeaderConstants.UploadLength, out var uploadLengthHeader);
@@ -35,7 +33,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             return VerifyDeferLength(deferLengthStore, uploadDeferLengthHeader.ToString());
         }
 
-        private Task<(HttpStatusCode status, string error)> VerifyDeferLength(bool isDeferLengthStore, string uploadDeferLengthHeader)
+        private Task<ITusActionResult> VerifyDeferLength(bool isDeferLengthStore, string uploadDeferLengthHeader)
         {
             if (!isDeferLengthStore)
             {
@@ -50,9 +48,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
             return OkTask();
         }
 
-        private Task<(HttpStatusCode status, string error)> VerifyRequestUploadLength(string uploadLengthHeader)
+        private Task<ITusActionResult> VerifyRequestUploadLength(string uploadLengthHeader)
         {
-            if (uploadLengthHeader == null)
+            if (string.IsNullOrWhiteSpace(uploadLengthHeader))
             {
                 return BadRequestTask($"Missing {HeaderConstants.UploadLength} header");
             }
@@ -77,4 +75,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
         }
     }
 }
-#endif

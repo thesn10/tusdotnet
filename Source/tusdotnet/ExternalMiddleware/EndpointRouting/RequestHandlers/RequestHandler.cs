@@ -1,10 +1,10 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
 using tusdotnet.Models;
+using tusdotnet.Routing;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
 {
@@ -16,7 +16,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         protected HttpContext HttpContext => _context.HttpContext;
         protected TusExtensionInfo ExtensionInfo => _context.ExtensionInfo;
         protected ITusEndpointOptions Options => _context.Options;
-        protected string UrlPath => _context.UrlPath;
+        protected ITusRoutingHelper RoutingHelper => _context.RoutingHelper;
 
         internal abstract RequestRequirement[] Requires { get; }
 
@@ -73,4 +73,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         }
     }
 }
-#endif

@@ -4,9 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
-using tusdotnet.Interfaces;
 using tusdotnet.Models;
-using tusdotnet.Stores;
 
 namespace AspNetCore_netcoreapp3._1_TestApp.Endpoints
 {

@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using tusdotnet.FileLocks;
 using tusdotnet.Interfaces;
@@ -29,6 +27,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         /// </summary>
         public ITusFileLockProvider FileLockProvider { get; set; } = InMemoryFileLockProvider.Instance;
 
+        /// <summary>
+        /// Callback to support checksum headers and trailers
+        /// </summary>
         public Func<Task<Checksum>> GetChecksumProvidedByClient { get; set; } = null;
 
 #if pipelines
@@ -43,7 +44,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         private DateTimeOffset? _systemTime;
 
-        internal void MockSystemTime(DateTimeOffset systemTime)
+        internal void MockSystemTime(DateTimeOffset? systemTime)
         {
             _systemTime = systemTime;
         }
@@ -54,5 +55,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         }
     }
 }
-
-#endif

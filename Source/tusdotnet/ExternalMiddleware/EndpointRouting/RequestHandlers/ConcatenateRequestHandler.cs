@@ -1,5 +1,4 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -72,7 +71,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
                 UploadMetadata = metadata,
                 Metadata = _metadataFromRequirement,
                 UploadLength = uploadLength,
-                FileConcat = _uploadConcat.Type,
+                FileConcatenation = _uploadConcat.Type,
             };
 
             ICreateResult createResult;
@@ -88,17 +87,77 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
             if (createResult is not TusCreateStatusResult createOk)
                 return createResult;
 
-            if (_isPartialFile && HttpContext.Request.Headers.ContentLength > 0)
+            if (_isPartialFile)
             {
-                // creation-with-upload
-                var writeHandler = new WriteRequestHandler(_context, _controller, createOk.FileId);
-                var writeResult = await writeHandler.Invoke();
-
-                if (writeResult is TusWriteStatusResult writeOk)
+                var isEmptyFile = createContext.UploadLength == 0;
+                if (isEmptyFile)
                 {
-                    createOk.Expires = writeOk.FileExpires;
-                    createOk.UploadOffset = writeOk.UploadOffset;
+                    createOk.UploadOffset = 0;
+                    return createOk;
                 }
+
+                var hasData = HttpContext.Request.ContentType == "application/offset+octet-stream";
+                if (hasData)
+                {
+                    // creation-with-upload
+                    var writeHandler = new WriteRequestHandler(_context, _controller, createOk.FileId, true);
+                    var writeValidator = new RequestValidator(writeHandler.Requires);
+
+                    var authorizeContext = new AuthorizeContext()
+                    {
+                        IntentType = IntentType.WriteFile,
+                        ControllerMethod = AuthorizeContext.GetControllerActionMethodInfo(IntentType.WriteFile, _controller),
+                        FileId = createOk.FileId,
+                        RequestHandler = this,
+                    };
+
+                    var authorizeResult = await _controller.Authorize(authorizeContext);
+
+                    if (!authorizeResult.IsSuccessResult)
+                    {
+                        createOk.UploadOffset = 0;
+                        return createOk;
+                    }
+
+                    var validateResult = await writeValidator.Validate(_context);
+
+                    if (!validateResult.IsSuccessResult)
+                    {
+                        createOk.UploadOffset = 0;
+                        return createOk;
+                    }
+
+                    var writeResult = await writeHandler.Invoke();
+
+                    if (writeResult is TusWriteStatusResult writeOk)
+                    {
+                        createOk.FileExpires = writeOk.FileExpires;
+                        createOk.UploadOffset = writeOk.UploadOffset;
+                    }
+                    else if (writeResult is TusStatusCodeResult statusCodeResult && statusCodeResult.Exception is TusIncompleteWriteException incompleteWriteEx)
+                    {
+                        createOk.UploadOffset = incompleteWriteEx.UploadOffset;
+                    }
+                    else if (!writeResult.IsSuccessResult)
+                    {
+                        createOk.UploadOffset = 0;
+                    }
+                }
+            }
+            else
+            {
+                ISimpleResult completedResult;
+                try
+                {
+                    completedResult = await _controller.FileCompleted(new() { FileId = createOk.FileId });
+                }
+                catch (TusException ex)
+                {
+                    return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                }
+
+                if (!completedResult.IsSuccessResult)
+                    return completedResult;
             }
 
             return createOk;
@@ -127,8 +186,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers
         {
             string uploadConcat = HttpContext.Request.Headers[HeaderConstants.UploadConcat].FirstOrDefault();
 
-            return new UploadConcat(uploadConcat, UrlPath);
+            return new UploadConcat(uploadConcat, RoutingHelper);
         }
     }
 }
-#endif

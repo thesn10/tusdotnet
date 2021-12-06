@@ -10,6 +10,7 @@ using tusdotnet.Models;
 using tusdotnet.test.Extensions;
 using Xunit;
 using tusdotnet.Helpers;
+using System.Threading;
 #if netfull
 using Microsoft.Owin.Testing;
 using Microsoft.Owin;
@@ -140,21 +141,23 @@ namespace tusdotnet.test.Tests
         [Fact]
         public async Task File_Lock_Provider_Is_Called_If_A_Lock_Is_Required()
         {
+            var store = Substitute.For<ITusStore, ITusTerminationStore, ITusCreationStore>().WithExistingFile("testfile", uploadLength: 10, uploadOffset: 5);
+
             var lockProvider = new FileLockProviderForConfigurationTests();
             var tusConfiguration = new DefaultTusConfiguration
             {
                 UrlPath = "/files",
-                Store = Substitute.For<ITusStore, ITusTerminationStore, ITusCreationStore>(),
+                Store = store,
                 FileLockProvider = lockProvider
             };
 
             using var server = TestServerFactory.Create(tusConfiguration);
 
             const string urlPath = "/files/";
-            var fileIdUrl = urlPath + Guid.NewGuid();
+            var fileIdUrl = urlPath + "testfile";
 
             // PATCH and DELETE are using locks.
-            var response = await server.CreateTusResumableRequest(fileIdUrl).SendAsync("PATCH");
+            var response = await server.CreateTusResumableRequest(fileIdUrl).AddHeader("Upload-Offset", "5").AddBody().SendAsync("PATCH");
             response = await server.CreateTusResumableRequest(fileIdUrl).SendAsync("DELETE");
 
             // Others will not lock.

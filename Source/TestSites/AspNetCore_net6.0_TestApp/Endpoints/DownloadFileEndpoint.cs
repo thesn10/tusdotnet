@@ -1,5 +1,5 @@
 ﻿using System.Text;
-using tusdotnet.Interfaces;
+using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Models;
 
 namespace AspNetCore_net6._0_TestApp.Endpoints;
@@ -8,15 +8,12 @@ public static class DownloadFileEndpoint
 {
     public static async Task HandleRoute(HttpContext context)
     {
-        var config = context.RequestServices.GetRequiredService<DefaultTusConfiguration>();
+        var fileId = (string)context.Request.RouteValues["fileId"]!;
 
-        if (config.Store is not ITusReadableStore store)
-        {
-            return;
-        }
+        var storageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
+        var storageClient = await storageClientProvider.Default();
 
-        var fileId = (string?)context.Request.RouteValues["fileId"];
-        var file = await store.GetFileAsync(fileId, context.RequestAborted);
+        var file = await storageClient.Get(fileId, context.RequestAborted);
 
         if (file == null)
         {

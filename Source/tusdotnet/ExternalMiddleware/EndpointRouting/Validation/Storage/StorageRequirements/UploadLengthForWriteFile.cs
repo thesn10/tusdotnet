@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.Models;
@@ -30,12 +28,12 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
 
             if (!_uploadLength.HasValue && !uploadLengthIsSet)
             {
-                throw new TusDeferLengthException($"Header {HeaderConstants.UploadLength} must be specified as this file was created using Upload-Defer-Length");
+                throw new TusUploadLengthException($"Header {HeaderConstants.UploadLength} must be specified as this file was created using Upload-Defer-Length");
             }
 
             if (_uploadLength.HasValue && uploadLengthIsSet)
             {
-                throw new TusDeferLengthException($"{HeaderConstants.UploadLength} cannot be updated once set");
+                throw new TusUploadLengthException($"{HeaderConstants.UploadLength} cannot be updated once set");
             }
         }
 
@@ -46,4 +44,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
         }
     }
 }
-#endif

@@ -1,6 +1,4 @@
-﻿#if endpointrouting
-
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using tusdotnet.Stores;
 
@@ -16,4 +14,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation
         public abstract Task PostValidate(StoreAdapter store, CancellationToken cancellationToken);
     }
 }
-#endif

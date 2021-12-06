@@ -60,10 +60,13 @@ namespace tusdotnet.test.Tests
 
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
+            // test supplies trailer too early which results in BadRequest before any data has been written
+#if !endpointrouting
             await ((ITusStore)store).Received().AppendDataAsync("checksum", Arg.Any<Stream>(), Arg.Any<CancellationToken>());
 
             // Note: Verify that store was still called with sha1 as algoritm and an empty checksum to force the store to trigger a discard of data.
             await store.Received().VerifyChecksumAsync("checksum", "sha1", Arg.Is(GetFallbackChecksumPredicate()), Arg.Any<CancellationToken>());
+#endif
         }
 
         [Theory]
@@ -85,10 +88,13 @@ namespace tusdotnet.test.Tests
 
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
+            // test supplies trailer too early which results in BadRequest before any data has been written
+#if !endpointrouting
             await ((ITusStore)store).Received().AppendDataAsync("checksum", Arg.Any<Stream>(), Arg.Any<CancellationToken>());
 
             // Note: Verify that store was still called with sha1 as algoritm and an empty checksum to force the store to trigger a discard of data.
             await store.Received().VerifyChecksumAsync("checksum", "sha1", Arg.Is(GetFallbackChecksumPredicate()), Arg.Any<CancellationToken>());
+#endif
         }
 
         [Fact]

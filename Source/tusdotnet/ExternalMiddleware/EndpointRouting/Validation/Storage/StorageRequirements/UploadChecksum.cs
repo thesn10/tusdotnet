@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using tusdotnet.Helpers;
 using tusdotnet.Models;
 using tusdotnet.Stores;
 
@@ -56,12 +57,14 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
                     {
                         if (!checksum.IsValid)
                         {
+                            await ForceStoreDiscardChunk(store);
                             TusChecksumException.ThrowCouldNotParseHeader();
                         }
 
                         var checksumAlgorithms = (await store.GetSupportedAlgorithmsAsync(cancellationToken)).ToList();
                         if (!checksumAlgorithms.Contains(checksum.Algorithm))
                         {
+                            await ForceStoreDiscardChunk(store);
                             TusChecksumException.ThrowUnsupportedAlgorithm(checksumAlgorithms);
                         }
                     }
@@ -73,6 +76,15 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Storage
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Forces the store to discard the already written data
+        /// </summary>
+        public Task ForceStoreDiscardChunk(StoreAdapter store)
+        {
+            var checksum = ChecksumTrailerHelper.TrailingChecksumToUseIfRealTrailerIsFaulty;
+            return store.VerifyChecksumAsync(_fileId, checksum.Algorithm, checksum.Hash, default);
         }
     }
 }

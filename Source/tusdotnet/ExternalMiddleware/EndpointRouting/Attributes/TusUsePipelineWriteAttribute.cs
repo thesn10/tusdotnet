@@ -7,6 +7,9 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     /// </summary>
     public class TusUsePipelineWriteAttribute : Attribute
     {
+        /// <summary>
+        /// Specifies that tus should use <see cref="System.IO.Pipelines.PipeReader"/> instead of <see cref="System.IO.Stream"/> when writing to a file
+        /// </summary>
         public TusUsePipelineWriteAttribute(bool usePipelines = true)
         {
             UsePipelines = usePipelines;

@@ -1,7 +1,5 @@
-﻿#if endpointrouting
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 
@@ -9,7 +7,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
 {
     internal sealed class UploadOffset : RequestRequirement
     {
-        public override Task<(HttpStatusCode status, string error)> Validate(TusExtensionInfo extensionInfo, HttpContext context)
+        public override Task<ITusActionResult> Validate(TusExtensionInfo extensionInfo, HttpContext context)
         {
             if (!context.Request.Headers.ContainsKey(HeaderConstants.UploadOffset))
             {
@@ -30,4 +28,3 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting.Validation.Requirements
         }
     }
 }
-#endif
