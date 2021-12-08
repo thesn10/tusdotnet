@@ -9,14 +9,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Primitives;
 using System;
-using System.Net;
 using System.Threading.Tasks;
-using tusdotnet.ExternalMiddleware.EndpointRouting;
+using tusdotnet;
 using tusdotnet.Helpers;
 using tusdotnet.Models;
-using tusdotnet.Models.Concatenation;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Models.Expiration;
 using tusdotnet.Stores;
@@ -49,9 +46,12 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             services
                 .AddTus()
-                .AddController<MyTusController>()
-                .AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), isDefault: true)
-                .AddEndpointServices();
+                .AddControllerServices(config =>
+                {
+                    config.AddController<MyTusController>();
+                    config.AddEndpointServices();
+                })
+                .AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), isDefault: true);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -105,7 +105,7 @@ namespace AspNetCore_netcoreapp3._1_TestApp
                 endpoints.MapTusController<MyTusController>("files").RequireAuthorization();
 
                 // If you dont need to write your own controller, you can use this simpler abstraction:
-                endpoints.MapTus("/other-files", (options) =>
+                endpoints.MapTus("/other-files/{fileId?}", (options) =>
                 {
                     options.StorageProfile = "my-storage";
                     options.Expiration = new AbsoluteExpiration(TimeSpan.FromMinutes(Constants.FileExpirationInMinutes));

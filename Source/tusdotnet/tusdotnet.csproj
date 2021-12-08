@@ -70,6 +70,10 @@
   <ItemGroup Condition="!$(DefineConstants.Contains(endpointrouting))">
     <Compile Remove="ExternalMiddleware\EndpointRouting\**" />
     <None Include="ExternalMiddleware\EndpointRouting\**" />
+	<Compile Remove="Controllers\**" />
+	<None Include="Controllers\**" />
+	<Compile Remove="RequestHandlers\**" />
+	<None Include="RequestHandlers\**" />
   </ItemGroup>
 
   <!-- Package references for .NET Framework -->
@@ -109,5 +113,5 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-
+	
 </Project>

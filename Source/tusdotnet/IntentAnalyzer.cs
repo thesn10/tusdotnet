@@ -6,6 +6,7 @@ using tusdotnet.IntentHandlers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Stores;
+using tusdotnet.Routing;
 
 #if endpointrouting
 using tusdotnet.ExternalMiddleware.EndpointRouting;
@@ -81,7 +82,7 @@ namespace tusdotnet
                 "patch" => DetermineIntentForPatch(),
                 "head" => DetermineIntentForHead(),
                 "options" => DetermineIntentForOptions(),
-                "delete" => DetermineIntentForDelete(context.ExtensionInfo.SupportedExtensions),
+                "delete" => DetermineIntentForDelete(context.FeatureSupportContext.SupportedExtensions),
                 _ => IntentType.NotApplicable,
             };
         }
@@ -162,7 +163,7 @@ namespace tusdotnet
 #if endpointrouting
         private static IntentType DetermineIntentForPost(TusContext context)
         {
-            var extensions = context.ExtensionInfo.SupportedExtensions;
+            var extensions = context.FeatureSupportContext.SupportedExtensions;
 
             if (!extensions.Creation)
                 return IntentType.NotApplicable;

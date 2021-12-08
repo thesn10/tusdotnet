@@ -3,7 +3,8 @@ using AspNetCore_net6._0_TestApp.Authentication;
 using AspNetCore_net6._0_TestApp.Endpoints;
 using AspNetCore_net6._0_TestApp.Services;
 using Microsoft.AspNetCore.Authentication;
-using tusdotnet.ExternalMiddleware.EndpointRouting;
+using tusdotnet;
+using tusdotnet.Controllers;
 using tusdotnet.Stores;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,7 +38,10 @@ static void AddAuthorization(WebApplicationBuilder builder)
 static void AddTus(WebApplicationBuilder builder)
 {
     builder.Services.AddTus()
-        .AddController<MyTusController>()
+        .AddControllerServices(config =>
+        {
+            config.AddController<MyTusController>();
+            //config.AddEndpointServices();
+        })
         .AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), true);
-        //.AddEndpointServices();
 }

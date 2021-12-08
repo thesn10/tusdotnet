@@ -7,11 +7,13 @@ using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
+using tusdotnet.Controllers;
 using tusdotnet.Extensions;
-using tusdotnet.ExternalMiddleware.EndpointRouting.RequestHandlers;
-using tusdotnet.ExternalMiddleware.EndpointRouting.Validation;
 using tusdotnet.Models;
+using tusdotnet.RequestHandlers;
+using tusdotnet.RequestHandlers.Validation;
 using tusdotnet.Routing;
+using tusdotnet.Storage;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
@@ -40,7 +42,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
     {
         private readonly TControllerOptions _controllerOptions;
 
-        internal TusProtocolHandlerEndpointBased(ITusEndpointOptions options, TControllerOptions controllerOptions) 
+        internal TusProtocolHandlerEndpointBased(ITusEndpointOptions options, TControllerOptions controllerOptions)
             : base(options)
         {
             _controllerOptions = controllerOptions;
@@ -85,10 +87,11 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             // the routing helper handles url generation for endpoint routing (or url path routing)
             var routingHelper = RoutingHelperFactory.Get(context);
 
+            // contains all context information of the current tus request
             var tusContext = new TusContext()
             {
                 HttpContext = context,
-                Options = _options,
+                EndpointOptions = _options,
                 RoutingHelper = routingHelper,
             };
 
@@ -97,19 +100,21 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             Controller.StorageClientProvider = StorageClientProvider;
             Controller.StorageClient = await StorageClientProvider.GetOrNull(_options.StorageProfile);
 
-            tusContext.ExtensionInfo = await Controller.GetOptions();
-            Controller.TusContext.ExtensionInfo = tusContext.ExtensionInfo;
+            tusContext.FeatureSupportContext = await Controller.GetOptions();
+            Controller.TusContext.FeatureSupportContext = tusContext.FeatureSupportContext;
 
             var intentType = IntentAnalyzer.DetermineIntent(tusContext);
             if (intentType == IntentType.NotApplicable)
             {
                 if (Next != null)
                 {
+                    // maintain middleware compatibility
                     await Next(context);
                     return;
                 }
                 else
                 {
+                    // default endpoint routing behaivior
                     context.Response.StatusCode = 404;
                     return;
                 }
@@ -131,7 +136,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             var authorizeContext = new AuthorizeContext()
             {
                 IntentType = intentType,
-                ControllerMethod = AuthorizeContext.GetControllerActionMethodInfo(intentType, Controller),
+                Controller = Controller,
                 FileId = fileId,
                 RequestHandler = requestHandler,
             };
@@ -156,19 +161,19 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         private void ApplyControllerAttributeOptions(Type controllerType)
         {
-            TusStorageProfileAttribute storageProfileAttr = controllerType.GetCustomAttribute<TusStorageProfileAttribute>();
+            StorageProfileAttribute storageProfileAttr = controllerType.GetCustomAttribute<StorageProfileAttribute>();
             if (storageProfileAttr != null)
             {
                 _options.StorageProfile = storageProfileAttr.ProfileName ?? "default";
             }
 
-            TusMetadataParsingAttribute metadatParsingAttr = controllerType.GetCustomAttribute<TusMetadataParsingAttribute>();
+            MetadataParsingAttribute metadatParsingAttr = controllerType.GetCustomAttribute<MetadataParsingAttribute>();
             if (metadatParsingAttr != null)
             {
                 _options.MetadataParsingStrategy = metadatParsingAttr.Strategy;
             }
 
-            TusMaxUploadSizeAttribute maxUploadAttr = controllerType.GetCustomAttribute<TusMaxUploadSizeAttribute>();
+            MaxUploadSizeAttribute maxUploadAttr = controllerType.GetCustomAttribute<MaxUploadSizeAttribute>();
             if (maxUploadAttr != null)
             {
                 _options.MaxAllowedUploadSizeInBytes = maxUploadAttr.MaxUploadSizeInBytes;
@@ -188,7 +193,7 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             context.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);
 
-            return Task.FromResult<ITusActionResult>(new TusStatusCodeResult(HttpStatusCode.PreconditionFailed, 
+            return Task.FromResult<ITusActionResult>(new TusStatusCodeResult(HttpStatusCode.PreconditionFailed,
                 $"Tus version {tusResumableHeader} is not supported. Supported versions: {HeaderConstants.TusResumableValue}"));
         }
     }

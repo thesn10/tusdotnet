@@ -15,14 +15,13 @@ namespace tusdotnet.Stores
     /// <summary>
     /// Adapter for ITusStore
     /// </summary>
-    public sealed class StoreAdapter : ITusStore, ITusCreationStore, ITusExpirationStore, ITusChecksumStore, 
+    public sealed class StoreAdapter : ITusStore, ITusCreationStore, ITusExpirationStore, ITusChecksumStore,
         ITusConcatenationStore, ITusCreationDeferLengthStore, ITusTerminationStore, ITusReadableStore
 #if pipelines
         , ITusPipelineStore
 #endif
     {
         private readonly ITusStore _store;
-        // TODO: Make into a property and require the property to be set and throw an invalid operation exception otherwise? Prevents null refs.
         private readonly ITusCreationStore _creationStore;
         private readonly ITusExpirationStore _expirationStore;
         private readonly ITusChecksumStore _checksumStore;
@@ -34,6 +33,80 @@ namespace tusdotnet.Stores
 #if pipelines
         private readonly ITusPipelineStore _pipelineStore;
 #endif
+
+        private ITusCreationStore CreationStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_creationStore);
+                return _creationStore;
+            }
+        }
+        private ITusExpirationStore ExpirationStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_expirationStore);
+                return _expirationStore;
+            }
+        }
+        private ITusChecksumStore ChecksumStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_checksumStore);
+                return _checksumStore;
+            }
+        }
+        private ITusConcatenationStore ConcatenationStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_concatStore);
+                return _concatStore;
+            }
+        }
+        private ITusCreationDeferLengthStore CreationDeferLengthStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_creationDeferLengthStore);
+                return _creationDeferLengthStore;
+            }
+        }
+        private ITusTerminationStore TerminationStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_terminationStore);
+                return _terminationStore;
+            }
+        }
+
+        private ITusReadableStore ReadableStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_readableStore);
+                return _readableStore;
+            }
+        }
+#if pipelines
+        private ITusPipelineStore PipelineStore
+        {
+            get
+            {
+                EnsureStoreNotNull(_pipelineStore);
+                return _pipelineStore;
+            }
+        }
+#endif
+
+        private void EnsureStoreNotNull<TStore>(TStore store)
+        {
+            if (store == null) throw new InvalidOperationException($"The store {store.GetType().FullName} does not implement {typeof(TStore).FullName}");
+        }
+
         /// <summary>
         /// Supported extensions of the store
         /// </summary>
@@ -43,6 +116,11 @@ namespace tusdotnet.Stores
         /// Supported features of the store
         /// </summary>
         public StoreFeatures Features { get; }
+
+        /// <summary>
+        /// Supported checksum algorithms of the store
+        /// </summary>
+        public StoreChecksumAlgorithms ChecksumAlgorithms { get; }
 
         /// <summary>
         /// The underlying store
@@ -58,6 +136,7 @@ namespace tusdotnet.Stores
 
             Extensions = new();
             Features = new();
+            ChecksumAlgorithms = new();
 
             if (store is ITusCreationStore creationStore)
             {
@@ -79,6 +158,7 @@ namespace tusdotnet.Stores
 #if trailingheaders
                 Extensions.ChecksumTrailer = true;
 #endif
+                ChecksumAlgorithms = new(GetSupportedAlgorithmsAsync);
             }
 
             if (store is ITusConcatenationStore concatStore)
@@ -123,13 +203,13 @@ namespace tusdotnet.Stores
         /// <inheritdoc />
         public Task DeleteFileAsync(string fileId, CancellationToken cancellationToken)
         {
-            return _terminationStore.DeleteFileAsync(fileId, cancellationToken);
+            return TerminationStore.DeleteFileAsync(fileId, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<string> CreateFileAsync(long uploadLength, string metadata, CancellationToken cancellationToken)
         {
-            return _creationStore.CreateFileAsync(uploadLength, metadata, cancellationToken);
+            return CreationStore.CreateFileAsync(uploadLength, metadata, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -147,7 +227,7 @@ namespace tusdotnet.Stores
         /// <inheritdoc />
         public Task<string> GetUploadMetadataAsync(string fileId, CancellationToken cancellationToken)
         {
-            return _creationStore.GetUploadMetadataAsync(fileId, cancellationToken);
+            return CreationStore.GetUploadMetadataAsync(fileId, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -159,74 +239,74 @@ namespace tusdotnet.Stores
         /// <inheritdoc />
         public Task SetExpirationAsync(string fileId, DateTimeOffset expires, CancellationToken cancellationToken)
         {
-            return _expirationStore.SetExpirationAsync(fileId, expires, cancellationToken);
+            return ExpirationStore.SetExpirationAsync(fileId, expires, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<DateTimeOffset?> GetExpirationAsync(string fileId, CancellationToken cancellationToken)
         {
-            return _expirationStore.GetExpirationAsync(fileId, cancellationToken);
+            return ExpirationStore.GetExpirationAsync(fileId, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<IEnumerable<string>> GetExpiredFilesAsync(CancellationToken cancellationToken)
         {
-            return _expirationStore.GetExpiredFilesAsync(cancellationToken);
+            return ExpirationStore.GetExpiredFilesAsync(cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<int> RemoveExpiredFilesAsync(CancellationToken cancellationToken)
         {
-            return _expirationStore.RemoveExpiredFilesAsync(cancellationToken);
+            return ExpirationStore.RemoveExpiredFilesAsync(cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<IEnumerable<string>> GetSupportedAlgorithmsAsync(CancellationToken cancellationToken)
         {
-            return _checksumStore.GetSupportedAlgorithmsAsync(cancellationToken);
+            return ChecksumStore.GetSupportedAlgorithmsAsync(cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<bool> VerifyChecksumAsync(string fileId, string algorithm, byte[] checksum, CancellationToken cancellationToken)
         {
-            return _checksumStore.VerifyChecksumAsync(fileId, algorithm, checksum, cancellationToken);
+            return ChecksumStore.VerifyChecksumAsync(fileId, algorithm, checksum, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<FileConcat> GetUploadConcatAsync(string fileId, CancellationToken cancellationToken)
         {
-            return _concatStore.GetUploadConcatAsync(fileId, cancellationToken);
+            return ConcatenationStore.GetUploadConcatAsync(fileId, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<string> CreatePartialFileAsync(long uploadLength, string metadata, CancellationToken cancellationToken)
         {
-            return _concatStore.CreatePartialFileAsync(uploadLength, metadata, cancellationToken);
+            return ConcatenationStore.CreatePartialFileAsync(uploadLength, metadata, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<string> CreateFinalFileAsync(string[] partialFiles, string metadata, CancellationToken cancellationToken)
         {
-            return _concatStore.CreateFinalFileAsync(partialFiles, metadata, cancellationToken);
+            return ConcatenationStore.CreateFinalFileAsync(partialFiles, metadata, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task SetUploadLengthAsync(string fileId, long uploadLength, CancellationToken cancellationToken)
         {
-            return _creationDeferLengthStore.SetUploadLengthAsync(fileId, uploadLength, cancellationToken);
+            return CreationDeferLengthStore.SetUploadLengthAsync(fileId, uploadLength, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<ITusFile> GetFileAsync(string fileId, CancellationToken cancellationToken)
         {
-            return _readableStore.GetFileAsync(fileId, cancellationToken);
+            return ReadableStore.GetFileAsync(fileId, cancellationToken);
         }
 
 #if pipelines
         /// <inheritdoc />
         public Task<long> AppendDataAsync(string fileId, PipeReader pipeReader, CancellationToken cancellationToken)
         {
-            return _pipelineStore.AppendDataAsync(fileId, pipeReader, cancellationToken);
+            return PipelineStore.AppendDataAsync(fileId, pipeReader, cancellationToken);
         }
 #endif
 

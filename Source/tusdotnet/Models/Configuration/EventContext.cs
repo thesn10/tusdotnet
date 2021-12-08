@@ -1,10 +1,9 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using System;
 using System.Threading;
-using tusdotnet.Adapters;
-using tusdotnet.Extensions;
-using tusdotnet.Interfaces;
-using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
+using tusdotnet.Adapters;
+using tusdotnet.Interfaces;
 #if netfull
 using Microsoft.Owin;
 #endif
@@ -52,7 +51,7 @@ namespace tusdotnet.Models.Configuration
         /// <returns>The file or null</returns>
         public Task<ITusFile> GetFileAsync()
         {
-            if(string.IsNullOrEmpty(FileId))
+            if (string.IsNullOrEmpty(FileId))
                 return Task.FromResult<ITusFile>(null);
 
             return ((ITusReadableStore)Store).GetFileAsync(FileId, CancellationToken);

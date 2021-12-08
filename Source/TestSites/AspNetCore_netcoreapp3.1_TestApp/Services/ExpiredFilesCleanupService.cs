@@ -3,10 +3,8 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Interfaces;
-using tusdotnet.Models;
-using tusdotnet.Models.Expiration;
+using tusdotnet.Storage;
 
 namespace AspNetCore_netcoreapp3._1_TestApp.Services
 {

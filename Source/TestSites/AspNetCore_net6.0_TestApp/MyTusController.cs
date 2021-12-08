@@ -1,13 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using tusdotnet.ExternalMiddleware.EndpointRouting;
+using tusdotnet.Controllers;
 using tusdotnet.Models;
 
 namespace AspNetCore_net6._0_TestApp
 {
     [TusController]
-    [TusStorageProfile("my-storage")]
-    [TusFileExpiration(5, false)]
-    [TusUsePipelineWrite]
+    [StorageProfile("my-storage")]
+    [FileExpiration(5, ExpirationType.Absolute)]
+    [UsePipelineWrite]
     public class MyTusController : TusControllerBase
     {
         private readonly ILogger<MyTusController> _logger;

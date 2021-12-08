@@ -4,10 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using tusdotnet.Adapters;
 using tusdotnet.Models;
-using tusdotnet.Routing;
 
 #if endpointrouting
 using tusdotnet.ExternalMiddleware.EndpointRouting;
+using tusdotnet.Controllers;
+using tusdotnet.Routing;
+using tusdotnet.Storage;
 #endif
 
 // ReSharper disable once CheckNamespace

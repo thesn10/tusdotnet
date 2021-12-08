@@ -1,19 +1,15 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using tusdotnet.ExternalMiddleware.EndpointRouting;
+using tusdotnet.Controllers;
 using tusdotnet.Models;
-using tusdotnet.Models.Expiration;
-using tusdotnet.Stores;
 
 namespace AspNetCore_netcoreapp3._1_TestApp
 {
     [TusController]
-    [TusStorageProfile("my-storage")]
-    [TusFileExpiration(5, false)]
+    [StorageProfile("my-storage")]
+    [FileExpiration(5, ExpirationType.Absolute)]
     public class MyTusController : TusControllerBase
     {
         private readonly ILogger<MyTusController> _logger;

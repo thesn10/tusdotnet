@@ -5,7 +5,7 @@ using tusdotnet.Interfaces;
 
 namespace tusdotnet.Validation.Requirements
 {
-    internal class FileHasNotExpired  : Requirement
+    internal class FileHasNotExpired : Requirement
     {
         public override Task Validate(ContextAdapter context)
         {
