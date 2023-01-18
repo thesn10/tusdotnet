@@ -8,6 +8,7 @@ using System.Net;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using tusdotnet.Controllers.Contexts.Tus2;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
@@ -191,6 +192,23 @@ namespace tusdotnet.Controllers
 
             return Ok();
         }
+
+
+        /*
+         * ------------
+         *    Tus2
+         * ------------
+         */
+
+        public virtual async Task<ISimpleResult> RetrieveOffset(RetrieveOffsetContext context)
+        {
+            EnsureStorageClientNotNull(nameof(Delete));
+
+            await StorageClient.Delete(context, cancellationToken: HttpContext.RequestAborted);
+
+            return Ok();
+        }
+
 
         private void EnsureStorageClientNotNull(string methodName)
         {
