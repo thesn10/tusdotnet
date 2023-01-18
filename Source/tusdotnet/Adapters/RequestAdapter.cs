@@ -31,7 +31,9 @@ namespace tusdotnet.Adapters
 
         public long UploadLength => _uploadLength.Value;
 
-        private readonly Lazy<string> _fileId;
+        public bool UploadChallengeProvidedAndPassed { get; set; }
+
+        private Lazy<string> _fileId;
         private readonly Lazy<long> _uploadLength;
         private readonly string _configUrlPath;
 
@@ -59,6 +61,11 @@ namespace tusdotnet.Adapters
             return Headers.ContainsKey(HeaderConstants.UploadDeferLength)
                 ? -1
                 : long.Parse(GetHeader(HeaderConstants.UploadLength) ?? "-1");
+        }
+
+        internal void SetFileId(string fileId)
+        {
+            _fileId = new Lazy<string>(() => fileId);
         }
     }
 }

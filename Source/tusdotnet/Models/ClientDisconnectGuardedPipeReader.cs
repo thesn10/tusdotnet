@@ -45,9 +45,9 @@ namespace tusdotnet.Models
         {
             try
             {
-                return await _backingReader.ReadAsync(_cancellationToken);
+                return await _backingReader.ReadAsync(cancellationToken);
             }
-            catch (Exception exc) when (ClientDisconnectGuard.ClientDisconnected(exc, cancellationToken))
+            catch (Exception exc) when (ClientDisconnectGuard.ClientDisconnected(exc, _cancellationToken))
             {
                 return new ReadResult(_emptySequence, isCanceled: true, isCompleted: false);
             }

@@ -35,7 +35,7 @@ namespace tusdotnet.Helpers
         /// <param name="guardFromClientDisconnect">The action to execute</param>
         /// <param name="requestCancellationToken">The cancellation token of the request to monitor for disconnects</param>
         /// <returns>True if the client disconnected, otherwise false</returns>
-        public static bool Execute(Action guardFromClientDisconnect, CancellationToken requestCancellationToken)
+        internal static bool Execute(Action guardFromClientDisconnect, CancellationToken requestCancellationToken)
         {
             try
             {

@@ -1,9 +1,12 @@
 ﻿using System.Threading.Tasks;
 using tusdotnet.Adapters;
 using tusdotnet.Constants;
+using tusdotnet.Extensions;
+using tusdotnet.Extensions.Internal;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
+using tusdotnet.Parsers;
 using tusdotnet.Validation;
 using tusdotnet.Validation.Requirements;
 
@@ -34,6 +37,7 @@ namespace tusdotnet.IntentHandlers
     {
         internal override Requirement[] Requires => new Requirement[]
         {
+            new ClientTagForHead(),
             new FileExist(),
             new FileHasNotExpired()
         };
@@ -41,6 +45,52 @@ namespace tusdotnet.IntentHandlers
         public GetFileInfoHandler(ContextAdapter context)
             : base(context, IntentType.GetFileInfo, LockType.NoLock)
         {
+        }
+
+        internal override async Task<ResultType> Challenge(UploadChallengeParserResult uploadChallenge, ITusChallengeStoreHashFunction hashFunction, ITusChallengeStore challengeStore)
+        {
+            var fileId = Context.Request.FileId;
+            var uploadTag = Context.Request.GetHeader(HeaderConstants.UploadTag);
+
+            if (string.IsNullOrEmpty(fileId))
+            {
+                if (Context.Configuration.SupportsClientTag() && !string.IsNullOrEmpty(uploadTag))
+                {
+                    var fileIdMap = await ((ITusClientTagStore)Context.Configuration.Store).ResolveUploadTagToFileIdAsync(uploadTag);
+                    if (fileIdMap == null)
+                    {
+                        Context.Response.NotFound();
+                        return ResultType.StopExecution;
+                    }
+
+                    // TODO: Cache this through the request somehow
+                    fileId = fileIdMap.FileId;
+                }
+                else
+                {
+                    Context.Response.NotFound();
+                    return ResultType.StopExecution;
+                }
+            }
+            var secret = await challengeStore.GetUploadSecretAsync(fileId, Context.CancellationToken);
+
+            if (string.IsNullOrEmpty(secret))
+                return ResultType.ContinueExecution;
+
+            if (!uploadChallenge.AssertUploadChallengeIsProvidedIfSecretIsSet(secret))
+            {
+                Context.Response.NotFound();
+                return ResultType.StopExecution;
+            }
+
+            if (!uploadChallenge.VerifyChecksum(Context.Request.GetHeader(HeaderConstants.UploadOffset), Context.Request.GetHttpMethod(), secret, hashFunction))
+            {
+                Context.Response.NotFound();
+                return ResultType.StopExecution;
+            }
+
+            Context.Request.UploadChallengeProvidedAndPassed = true;
+            return ResultType.ContinueExecution;
         }
 
         internal override async Task Invoke()
@@ -81,6 +131,12 @@ namespace tusdotnet.IntentHandlers
             {
                 (uploadConcat as FileConcatFinal)?.AddUrlPathToFiles(Context.Configuration.UrlPath);
                 Response.SetHeader(HeaderConstants.UploadConcat, uploadConcat.GetHeader());
+            }
+
+            if (Context.Configuration.SupportsClientTag())
+            {
+                // TODO: Only add location if upload-tag was used (not if directly for a file resource)
+                Response.SetHeader(HeaderConstants.Location, Context.CreateLocationHeaderValue(Request.FileId));
             }
         }
 

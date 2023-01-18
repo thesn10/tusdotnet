@@ -28,7 +28,9 @@ namespace tusdotnet.Stores
         ITusChecksumStore,
         ITusConcatenationStore,
         ITusExpirationStore,
-        ITusCreationDeferLengthStore
+        ITusCreationDeferLengthStore,
+        ITusClientTagStore,
+        ITusChallengeStore
     {
         private readonly string _directoryPath;
         private readonly bool _deletePartialFilesOnConcat;
@@ -162,11 +164,21 @@ namespace tusdotnet.Stores
                 _fileRepFactory.ChunkStartPosition(internalFileId).Delete();
                 _fileRepFactory.ChunkComplete(internalFileId).Delete();
                 _fileRepFactory.Expiration(internalFileId).Delete();
+                _fileRepFactory.UploadSecret(internalFileId).Delete();
+
+                var clientTagFile = _fileRepFactory.ClientTag(internalFileId);
+                var clientTagValue = clientTagFile.ReadFirstLine(true);
+                if (!string.IsNullOrWhiteSpace(clientTagValue))
+                {
+                    clientTagFile.Delete();
+                    _fileRepFactory.ClientTag(clientTagValue).Delete();
+                    _fileRepFactory.ClientTagBelongsToUser(internalFileId).Delete();
+                }
             });
         }
 
         /// <inheritdoc />
-        public Task<IEnumerable<string>> GetSupportedAlgorithmsAsync(CancellationToken _)
+        Task<IEnumerable<string>> ITusChecksumStore.GetSupportedAlgorithmsAsync(CancellationToken _)
         {
             return Task.FromResult<IEnumerable<string>>(new[] { "sha1" });
         }
@@ -332,6 +344,37 @@ namespace tusdotnet.Stores
             _fileRepFactory.UploadLength(await InternalFileId.Parse(_fileIdProvider, fileId)).Write(uploadLength.ToString());
         }
 
+        public Task SetClientTagAsync(string fileId, string uploadTag, string user)
+        {
+            var internalFileId = new InternalFileId(fileId);
+            _fileRepFactory.ClientTag(uploadTag).Write(fileId);
+            _fileRepFactory.ClientTag(internalFileId).Write(uploadTag);
+            if (!string.IsNullOrWhiteSpace(user))
+            {
+                _fileRepFactory.ClientTagBelongsToUser(internalFileId).Write(user);
+            }
+
+            return TaskHelper.Completed;
+        }
+
+        public Task<ClientTagFileIdMap> ResolveUploadTagToFileIdAsync(string uploadTag)
+        {
+            var fileId = _fileRepFactory.ClientTag(uploadTag).ReadFirstLine(true);
+
+            if (string.IsNullOrWhiteSpace(fileId))
+                return Task.FromResult<ClientTagFileIdMap>(null);
+
+            var belongsToUser = _fileRepFactory.ClientTagBelongsToUser(new InternalFileId(fileId)).ReadFirstLine(true);
+
+            var result = new ClientTagFileIdMap
+            {
+                FileId = fileId,
+                User = belongsToUser
+            };
+
+            return Task.FromResult(result);
+        }
+
         private InternalFileRep InitializeChunk(InternalFileId internalFileId, long totalDiskFileLength)
         {
             var chunkComplete = _fileRepFactory.ChunkComplete(internalFileId);
@@ -344,6 +387,18 @@ namespace tusdotnet.Stores
         private void MarkChunkComplete(InternalFileRep chunkComplete)
         {
             chunkComplete.Write("1");
+        }
+
+
+        Task ITusChallengeStore.SetUploadSecretAsync(string fileId, string uploadSecret, CancellationToken _)
+        {
+            _fileRepFactory.UploadSecret(new InternalFileId(fileId)).Write(uploadSecret);
+            return TaskHelper.Completed;
+        }
+
+        Task<string> ITusChallengeStore.GetUploadSecretAsync(string fileId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_fileRepFactory.UploadSecret(new InternalFileId(fileId)).ReadFirstLine(fileIsOptional: true));
         }
     }
 }

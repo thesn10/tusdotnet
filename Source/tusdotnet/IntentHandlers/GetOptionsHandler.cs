@@ -3,9 +3,11 @@ using System.Net;
 using System.Threading.Tasks;
 using tusdotnet.Adapters;
 using tusdotnet.Constants;
+using tusdotnet.Extensions.Internal;
 using tusdotnet.Helpers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
+using tusdotnet.Parsers;
 using tusdotnet.Validation;
 
 namespace tusdotnet.IntentHandlers
@@ -55,6 +57,11 @@ namespace tusdotnet.IntentHandlers
                 response.SetHeader(HeaderConstants.TusChecksumAlgorithm, string.Join(",", checksumAlgorithms));
             }
 
+            if (Context.Configuration.Store is ITusChallengeStore challengeStore)
+            {
+                response.SetHeader(HeaderConstants.TusChallengeAlgorithm, string.Join(",", ChallengeChecksumCalculator.SupportedAlgorithms));
+            }
+
             response.SetStatus(HttpStatusCode.NoContent);
         }
 
@@ -98,7 +105,22 @@ namespace tusdotnet.IntentHandlers
                 extensions.Add(ExtensionConstants.CreationDeferLength);
             }
 
+            if (Context.Configuration.SupportsClientTag())
+            {
+                extensions.Add(ExtensionConstants.ClientTag);
+            }
+
+            if (Context.Configuration.Store is ITusChallengeStore)
+            {
+                extensions.Add(ExtensionConstants.Challenge);
+            }
+
             return extensions;
+        }
+
+        internal override Task<ResultType> Challenge(UploadChallengeParserResult uploadChallenge, ITusChallengeStoreHashFunction hashFunction, ITusChallengeStore challengeStore)
+        {
+            return Task.FromResult(ResultType.ContinueExecution);
         }
     }
 }

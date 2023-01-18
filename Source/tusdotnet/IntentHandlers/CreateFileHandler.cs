@@ -8,6 +8,7 @@ using tusdotnet.Helpers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
+using tusdotnet.Parsers;
 using tusdotnet.Validation;
 using tusdotnet.Validation.Requirements;
 
@@ -38,22 +39,33 @@ namespace tusdotnet.IntentHandlers
     */
     internal class CreateFileHandler : IntentHandler
     {
-        internal override Requirement[] Requires => new Requirement[]
+        internal override Requirement[] Requires => GetListOfRequirements();
+
+        private Requirement[] GetListOfRequirements()
         {
-            new UploadLengthForCreateFileAndConcatenateFiles(),
-            new UploadMetadata(metadata => _metadataFromRequirement = metadata)
-        };
+            return new Requirement[]
+            {
+                new UploadLengthForCreateFileAndConcatenateFiles(),
+                new UploadMetadata(metadata => _metadataFromRequirement = metadata),
+                new ClientTagForPost(_clientTagStore),
+                new UploadSecretForPost(_challengeStore)
+            };
+        }
 
         private readonly ITusCreationStore _creationStore;
 
         private readonly ExpirationHelper _expirationHelper;
 
         private Dictionary<string, Metadata> _metadataFromRequirement;
+        private readonly ITusClientTagStore _clientTagStore;
+        private readonly ITusChallengeStore _challengeStore;
 
-        public CreateFileHandler(ContextAdapter context, ITusCreationStore creationStore)
+        public CreateFileHandler(ContextAdapter context, ITusCreationStore creationStore, ITusClientTagStore clientTagStore, ITusChallengeStore challengeStore)
             : base(context, IntentType.CreateFile, LockType.NoLock)
         {
             _creationStore = creationStore;
+            _clientTagStore = clientTagStore;
+            _challengeStore = challengeStore;
             _expirationHelper = new ExpirationHelper(context.Configuration.Store as ITusExpirationStore, context.Configuration.Expiration, context.Configuration.GetSystemTime);
         }
 
@@ -74,10 +86,23 @@ namespace tusdotnet.IntentHandlers
 
             var fileId = await _creationStore.CreateFileAsync(Request.UploadLength, metadata, CancellationToken);
 
+            string uploadTag = null;
+            if (_clientTagStore != null && (uploadTag = Request.GetHeader(HeaderConstants.UploadTag)) != null)
+            {
+                await _clientTagStore.SetClientTagAsync(fileId, uploadTag, Context.GetUsername());
+            }
+
+            string uploadSecret = null;
+            if (_challengeStore != null && (uploadSecret = Request.GetHeader(HeaderConstants.UploadSecret)) != null)
+            {
+                await _challengeStore.SetUploadSecretAsync(fileId, uploadSecret, Context.CancellationToken);
+            }
+
             await EventHelper.Notify<CreateCompleteContext>(Context, ctx =>
             {
                 ctx.FileId = fileId;
                 ctx.FileConcatenation = null;
+                ctx.UploadTag = uploadTag;
                 ctx.Metadata = _metadataFromRequirement;
                 ctx.UploadLength = Request.UploadLength;
             });
@@ -127,7 +152,12 @@ namespace tusdotnet.IntentHandlers
             }
 
             Response.SetHeader(HeaderConstants.TusResumable, HeaderConstants.TusResumableValue);
-            Response.SetHeader(HeaderConstants.Location, $"{Context.Configuration.UrlPath.TrimEnd('/')}/{fileId}");
+            Response.SetHeader(HeaderConstants.Location, Context.CreateLocationHeaderValue(fileId));
+        }
+
+        internal override Task<ResultType> Challenge(UploadChallengeParserResult uploadChallenge, ITusChallengeStoreHashFunction hashFunction, ITusChallengeStore challengeStore)
+        {
+            return Task.FromResult(ResultType.ContinueExecution);
         }
     }
 }

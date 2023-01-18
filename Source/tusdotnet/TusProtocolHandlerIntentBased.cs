@@ -10,6 +10,7 @@ using tusdotnet.IntentHandlers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
+using tusdotnet.Parsers;
 
 namespace tusdotnet
 {
@@ -33,10 +34,17 @@ namespace tusdotnet
 
             var intentHandler = IntentAnalyzer.GetHandler(intentType, context);
 
+            // Hack for Upload-Challenge, fix a chain of authenticators (challenge + OnAuthorizeAsync)
+            if (await VerifyUploadChallengeIfApplicable(context, intentHandler) == ResultType.StopExecution)
+            {
+                return ResultType.StopExecution;
+            }
+
             var onAuhorizeResult = await EventHelper.Validate<AuthorizeContext>(context, ctx =>
             {
                 ctx.Intent = intentType;
                 ctx.FileConcatenation = GetFileConcatenationFromIntentHandler(intentHandler);
+                // TODO: Add client-tag and resolved file id here or in a separate event/callback?
             });
 
             if (onAuhorizeResult == ResultType.StopExecution)
@@ -82,6 +90,38 @@ namespace tusdotnet
             {
                 fileLock?.ReleaseIfHeld();
             }
+        }
+
+        private static async Task<ResultType> VerifyUploadChallengeIfApplicable(ContextAdapter context, IntentHandler intentHandler)
+        {
+            if (!(context.Configuration.Store is ITusChallengeStore challengeStore))
+                return ResultType.ContinueExecution;
+
+            UploadChallengeParserResult parsedUploadChallenge = null;
+            ITusChallengeStoreHashFunction hashFunction = null;
+
+            var uploadChallengeHeader = context.Request.GetHeader(HeaderConstants.UploadChallenge);
+
+            if (!string.IsNullOrEmpty(uploadChallengeHeader))
+            {
+                parsedUploadChallenge = UploadChallengeParser.ParseAndValidate(uploadChallengeHeader, ChallengeChecksumCalculator.SupportedAlgorithms);
+                if (!parsedUploadChallenge.Success)
+                {
+                    await context.Response.Error(HttpStatusCode.BadRequest, parsedUploadChallenge.ErrorMessage);
+                    return ResultType.StopExecution;
+                }
+
+                hashFunction = ChallengeChecksumCalculator.Sha256;
+            }
+
+            var challengeResult = await intentHandler.Challenge(parsedUploadChallenge, hashFunction, challengeStore);
+            if (challengeResult == ResultType.StopExecution)
+            {
+                context.Response.NotFound();
+                return ResultType.StopExecution;
+            }
+
+            return ResultType.ContinueExecution;
         }
 
         private static Models.Concatenation.FileConcat GetFileConcatenationFromIntentHandler(IntentHandler intentHandler)

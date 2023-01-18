@@ -1,22 +1,26 @@
+using System;
+using System.Buffers;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
 using AspNetCore_netcoreapp3._1_TestApp.Authentication;
 using AspNetCore_netcoreapp3._1_TestApp.Endpoints;
 using AspNetCore_netcoreapp3_1_TestApp.Middleware;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading.Tasks;
 using tusdotnet;
 using tusdotnet.Helpers;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Models.Expiration;
 using tusdotnet.Stores;
+using tusdotnet.Tus2;
 
 namespace AspNetCore_netcoreapp3._1_TestApp
 {
@@ -27,7 +31,9 @@ namespace AspNetCore_netcoreapp3._1_TestApp
             Configuration = configuration;
         }
 
-        public IConfiguration Configuration { get; }
+        public static IConfiguration Configuration { get; private set; }
+
+        public static string DirectoryPath => Configuration.GetValue<string>("FolderDiskPath");
 
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
@@ -52,6 +58,19 @@ namespace AspNetCore_netcoreapp3._1_TestApp
                     config.AddEndpointServices();
                 })
                 .AddStorage("my-storage", new TusDiskStore(@"C:\tusfiles\"), isDefault: true);
+
+            services.AddOptions();
+
+            services.Configure<Tus2Options>(Configuration);
+
+            services.AddTus2(options =>
+            {
+                options.AddStorageFactory(new SimpleTus2StorageFactory());
+                options.AddDiskStorage(@"C:\tusfiles");
+                //options.AddDiskBasedUploadManager(@"C:\tusfiles");
+                options.AddHandler<MyTusHandler>();
+                options.AddHandler<OnlyCompleteTusHandler>();
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -76,10 +95,10 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             app.UseAuthentication();
 
-            app.UseDefaultFiles();
-            app.UseStaticFiles();
+            //app.UseDefaultFiles();
+            //app.UseStaticFiles();
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
 
             app.UseCors(builder => builder
                .AllowAnyHeader()
@@ -93,6 +112,26 @@ namespace AspNetCore_netcoreapp3._1_TestApp
 
             app.UseRouting();
 
+            // All GET requests to tusdotnet are forwarded so that you can handle file downloads.
+            // This is done because the file's metadata is domain specific and thus cannot be handled 
+            // in a generic way by tusdotnet.
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapTus2<MyTusHandler>("/files-tus-2");
+                endpoints.MapTus2<OnlyCompleteTusHandler>("/files-tus-2-only-complete");
+                endpoints.MapGet("/files/{fileId}", DownloadFileEndpoint.HandleRoute);
+                endpoints.Map("/files-tus-2-info", Tus2InfoEndpoint.Invoke);
+                endpoints.MapGet("/random-file-id", async httpContext =>
+                {
+                    var arr = ArrayPool<byte>.Shared.Rent(32);
+                    var span = arr.AsMemory()[..32];
+                    RandomNumberGenerator.Fill(span.Span);
+
+                    await httpContext.Response.WriteAsync(":" + Convert.ToBase64String(span.Span) + ":");
+
+                    ArrayPool<byte>.Shared.Return(arr, clearArray: true);
+                });
+            });
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints => 

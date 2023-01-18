@@ -2,6 +2,7 @@
 using System;
 using tusdotnet.Adapters;
 using tusdotnet.Constants;
+using tusdotnet.Extensions.Internal;
 using tusdotnet.IntentHandlers;
 using tusdotnet.Interfaces;
 using tusdotnet.Models;
@@ -18,7 +19,7 @@ namespace tusdotnet
     {
         public static IntentType DetermineIntent(ContextAdapter context)
         {
-            var httpMethod = GetHttpMethod(context.Request);
+            var httpMethod = context.Request.GetHttpMethod();
 
             if (RequestRequiresTusResumableHeader(httpMethod))
             {
@@ -28,7 +29,15 @@ namespace tusdotnet
                 }
             }
 
-            if (MethodRequiresFileIdUrl(httpMethod))
+            // TODO: Hack, fix in a better way
+            if (httpMethod == "head" && context.Configuration.SupportsClientTag())
+            {
+                if (!UrlMatchesFileIdUrl(context.Request.RequestUri, context.Configuration.UrlPath) && !UrlMatchesUrlPath(context.Request.RequestUri, context.Configuration.UrlPath))
+                {
+                    return IntentType.NotApplicable;
+                }
+            }
+            else if (MethodRequiresFileIdUrl(httpMethod))
             {
                 if (!UrlMatchesFileIdUrl(context.Request.RequestUri, context.Configuration.UrlPath))
                 {
