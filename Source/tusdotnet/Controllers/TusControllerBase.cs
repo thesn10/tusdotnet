@@ -14,6 +14,7 @@ using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
 using tusdotnet.Routing;
 using tusdotnet.Storage;
+using tusdotnet.Storage.Tus2;
 
 namespace tusdotnet.Controllers
 {
@@ -194,22 +195,6 @@ namespace tusdotnet.Controllers
         }
 
 
-        /*
-         * ------------
-         *    Tus2
-         * ------------
-         */
-
-        public virtual async Task<ISimpleResult> RetrieveOffset(RetrieveOffsetContext context)
-        {
-            EnsureStorageClientNotNull(nameof(Delete));
-
-            await StorageClient.Delete(context, cancellationToken: HttpContext.RequestAborted);
-
-            return Ok();
-        }
-
-
         private void EnsureStorageClientNotNull(string methodName)
         {
             if (StorageClient == null)
@@ -269,7 +254,7 @@ namespace tusdotnet.Controllers
         /// <summary>
         /// Return the specified status code. This may not be compliant with tus spec, use with caution!
         /// </summary>
-        protected TusStatusCodeResult StatusCode(HttpStatusCode statusCode, string message) => new TusStatusCodeResult(statusCode, message);
+        protected TusBaseResult StatusCode(HttpStatusCode statusCode, string message) => new TusBaseResult(statusCode, message);
 
     }
 }

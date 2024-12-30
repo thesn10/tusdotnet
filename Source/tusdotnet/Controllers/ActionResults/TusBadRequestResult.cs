@@ -35,7 +35,7 @@ namespace tusdotnet.Controllers
         /// <inheritdoc />
         public Task Execute(TusContext context)
         {
-            return new TusStatusCodeResult(HttpStatusCode.BadRequest, Message).Execute(context);
+            return new TusBaseResult(HttpStatusCode.BadRequest, Message).Execute(context);
         }
     }
 }

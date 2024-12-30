@@ -59,7 +59,7 @@ namespace tusdotnet.Tus2
             if (builder.Storage != null)
             {
                 services.AddScoped(_ => builder.Storage);
-                services.AddScoped(_ => new Tus2StorageFacade(builder.Storage));
+                services.AddScoped(_ => new Tus2StorageClient(builder.Storage));
             }
 
             if (builder.StorageFactory != null)

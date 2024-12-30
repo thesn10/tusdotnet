@@ -17,6 +17,12 @@ namespace tusdotnet.Controllers
     {
         public TusSimpleEndpointOptions Options { get; set; }
 
+
+        public EventsBasedTusController(TusSimpleEndpointOptions options)
+        {
+            Options = options;
+        }
+
         public override async Task<ICreateResult> Create(CreateContext context)
         {
             var onBeforeCreateResult = await Notify<BeforeCreateContext>(null, ctx =>

@@ -28,5 +28,10 @@ namespace tusdotnet.Helpers
         {
             context.Response.Headers.Add(HeaderConstants.CacheControl, HeaderConstants.NoStore);
         }
+
+        internal static void SetCacheNoCacheHeader(HttpContext context)
+        {
+            context.Response.Headers.Add(HeaderConstants.CacheControl, HeaderConstants.NoCache);
+        }
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Net;
 using System.Threading.Tasks;
+using tusdotnet.Controllers.Contexts.Tus2;
 
 namespace tusdotnet.Tus2
 {

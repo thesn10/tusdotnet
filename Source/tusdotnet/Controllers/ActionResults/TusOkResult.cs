@@ -16,7 +16,7 @@ namespace tusdotnet.Controllers
         /// <inheritdoc />
         public Task Execute(TusContext context)
         {
-            return new TusStatusCodeResult(HttpStatusCode.NoContent).Execute(context);
+            return new TusBaseResult(HttpStatusCode.NoContent).Execute(context);
         }
     }
 }

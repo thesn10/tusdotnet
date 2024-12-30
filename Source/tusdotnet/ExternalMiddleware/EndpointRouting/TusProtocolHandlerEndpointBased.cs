@@ -1,6 +1,8 @@
 ﻿#if endpointrouting
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Net;
@@ -17,45 +19,16 @@ using tusdotnet.Storage;
 
 namespace tusdotnet.ExternalMiddleware.EndpointRouting
 {
-    internal class TusProtocolHandlerEndpointBased<TController> : TusProtocolHandlerEndpointBased
-        where TController : TusControllerBase
+    internal class TusProtocolHandlerEndpointBasedDI : TusProtocolHandlerEndpointBased
     {
-        internal TusProtocolHandlerEndpointBased(ITusEndpointOptions options)
+        internal TusProtocolHandlerEndpointBasedDI(ITusEndpointOptions options)
             : base(options)
         {
         }
 
         internal new Task Invoke(HttpContext context)
         {
-            Controller = context.RequestServices.GetRequiredService<TController>();
-
-            StorageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
-
-            RoutingHelperFactory = context.RequestServices.GetRequiredService<ITusRoutingHelperFactory>();
-
-            return base.Invoke(context);
-        }
-    }
-
-    internal class TusProtocolHandlerEndpointBased<TController, TControllerOptions> : TusProtocolHandlerEndpointBased
-        where TController : TusControllerBase, IControllerWithOptions<TControllerOptions>
-    {
-        private readonly TControllerOptions _controllerOptions;
-
-        internal TusProtocolHandlerEndpointBased(ITusEndpointOptions options, TControllerOptions controllerOptions)
-            : base(options)
-        {
-            _controllerOptions = controllerOptions;
-        }
-
-        internal new Task Invoke(HttpContext context)
-        {
-            Controller = context.RequestServices.GetRequiredService<TController>();
-
-            if (Controller is IControllerWithOptions<TControllerOptions> controllerWithOptions)
-            {
-                controllerWithOptions.Options = _controllerOptions;
-            }
+            ControllerFactory = context.RequestServices.GetRequiredService<IControllerFactory>();
 
             StorageClientProvider = context.RequestServices.GetRequiredService<ITusStorageClientProvider>();
 
@@ -75,14 +48,26 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
         }
 
         public ITusRoutingHelperFactory RoutingHelperFactory { get; set; }
-        public ITusStorageClientProvider StorageClientProvider { get; set; }
-        public TusControllerBase Controller { get; set; }
+        public ITusStorageClientProvider? StorageClientProvider { get; set; }
+        /// <summary>
+        /// Setting this to null will disable tus v1 support
+        /// </summary>
+        //public TusControllerBase? V1Controller { get; set; }
+        /// <summary>
+        /// Setting this to null will disable tus v2 support
+        /// </summary>
+        //public Tus2ControllerBase? V2Controller { get; set; }
+
+        public IControllerFactory ControllerFactory { get; set; }
 
         public RequestDelegate Next { get; set; }
 
         internal async Task Invoke(HttpContext context)
         {
-            ApplyControllerAttributeOptions(Controller.GetType());
+            var v1Controller = ControllerFactory.CreateController(context);
+            var v2Controller = ControllerFactory.CreateV2Controller(context);
+
+            ApplyControllerAttributeOptions(v1Controller.GetType());
 
             // the routing helper handles url generation for endpoint routing (or url path routing)
             var routingHelper = RoutingHelperFactory.Get(context);
@@ -94,14 +79,6 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 EndpointOptions = _options,
                 RoutingHelper = routingHelper,
             };
-
-            // Inject services into the controller
-            Controller.TusContext = tusContext;
-            Controller.StorageClientProvider = StorageClientProvider;
-            Controller.StorageClient = await StorageClientProvider.GetOrNull(_options.StorageProfile);
-
-            tusContext.FeatureSupportContext = await Controller.GetOptions();
-            Controller.TusContext.FeatureSupportContext = tusContext.FeatureSupportContext;
 
             var intentType = IntentAnalyzer.DetermineIntent(tusContext);
             if (intentType == IntentType.NotApplicable)
@@ -128,24 +105,53 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
                 return;
             }
 
-            var fileId = routingHelper.GetFileId();
+            //TODO check version
 
-            RequestHandler requestHandler = RequestHandler.GetInstance(intentType, tusContext, Controller, fileId);
+            IRequestHandler? requestHandler = null;
+
+            if (v1Controller is not null)
+            {
+                // Inject services into the controller
+                v1Controller.TusContext = tusContext;
+                v1Controller.StorageClientProvider = StorageClientProvider;
+                v1Controller.StorageClient = await StorageClientProvider?.GetOrNull(_options.StorageProfile);
+
+                tusContext.FeatureSupportContext = await v1Controller.GetOptions();
+                v1Controller.TusContext.FeatureSupportContext = tusContext.FeatureSupportContext;
+
+                requestHandler = RequestHandler.GetInstance(intentType, tusContext, v1Controller);
+            }
+
+            if (v2Controller is not null)
+            {
+                requestHandler = RequestHandlerV2.GetInstance(intentType, tusContext, v2Controller);
+            }
+
+            //var fileId = routingHelper.GetFileId();
+
             RequestValidator requestValidator = new RequestValidator(requestHandler.Requires);
 
-            var authorizeContext = new AuthorizeContext()
+            /*var authorizeContext = new AuthorizeContext()
             {
                 IntentType = intentType,
                 Controller = Controller,
-                FileId = fileId,
+                FileId = null, // TODO
                 RequestHandler = requestHandler,
             };
 
-            var authorizeResult = await Controller.Authorize(authorizeContext);
+            var authorizeResult = await V1Controller.Authorize(authorizeContext);*/
 
-            if (!authorizeResult.IsSuccessResult)
+            var authorizeResult = await Authorize(context, GetMethodToAuthorize(v1Controller, intentType));
+
+            /*if (!authorizeResult.IsSuccessResult)
             {
                 await authorizeResult.Execute(tusContext);
+                return;
+            }*/
+
+            if (!authorizeResult.Succeeded)
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
                 return;
             }
 
@@ -193,8 +199,55 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             context.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);
 
-            return Task.FromResult<ITusActionResult>(new TusStatusCodeResult(HttpStatusCode.PreconditionFailed,
+            return Task.FromResult<ITusActionResult>(new TusBaseResult(HttpStatusCode.PreconditionFailed,
                 $"Tus version {tusResumableHeader} is not supported. Supported versions: {HeaderConstants.TusResumableValue}"));
+        }
+
+        private async Task<AuthorizationResult?> Authorize(HttpContext context, MethodInfo methodToAuthorize)
+        {
+            var authService = context.RequestServices.GetService<IAuthorizationService>();
+            if (authService is null)
+            {
+                return null;
+            }
+
+            var authorizeAttribute = methodToAuthorize.GetCustomAttribute<AuthorizeAttribute>();
+            if (authorizeAttribute is null)
+            {
+                return null;
+            }
+
+            return await authService.AuthorizeAsync(context.User, authorizeAttribute.Policy);
+        }
+
+        /// <summary>
+        /// Gets the method to authorize. Useful for reading method attributes
+        /// </summary>
+        public MethodInfo GetMethodToAuthorize(TusControllerBase v1Controller, IntentType intentType)
+        {
+#if NETCOREAPP2_0_OR_GREATER
+            return intentType switch
+            {
+                IntentType.WriteFile => ((Func<WriteContext, Task<IWriteResult>>)v1Controller.Write).Method,
+                IntentType.CreateFile => ((Func<CreateContext, Task<ICreateResult>>)v1Controller.Create).Method,
+                IntentType.ConcatenateFiles => ((Func<CreateContext, Task<ICreateResult>>)v1Controller.Create).Method,
+                IntentType.DeleteFile => ((Func<DeleteContext, Task<ISimpleResult>>)v1Controller.Delete).Method,
+                IntentType.GetFileInfo => ((Func<GetFileInfoContext, Task<IFileInfoResult>>)v1Controller.GetFileInfo).Method,
+                IntentType.GetOptions => ((Func<Task<FeatureSupportContext>>)v1Controller.GetOptions).Method,
+                _ => throw new ArgumentException(),
+            };
+#else
+            return intentType switch
+            {
+                IntentType.WriteFile => Controller.GetType().GetMethod(nameof(Controller.Write)),
+                IntentType.CreateFile => Controller.GetType().GetMethod(nameof(Controller.Create)),
+                IntentType.ConcatenateFiles => Controller.GetType().GetMethod(nameof(Controller.Create)),
+                IntentType.DeleteFile => Controller.GetType().GetMethod(nameof(Controller.Delete)),
+                IntentType.GetFileInfo => Controller.GetType().GetMethod(nameof(Controller.GetFileInfo)),
+                IntentType.GetOptions => Controller.GetType().GetMethod(nameof(Controller.GetOptions)),
+                _ => throw new ArgumentException(),
+            };
+#endif
         }
     }
 }

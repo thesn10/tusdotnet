@@ -17,32 +17,32 @@ namespace tusdotnet.RequestHandlers.Validation
 
         protected ITusActionResult Conflict(string errorMessage)
         {
-            return new TusStatusCodeResult(HttpStatusCode.Conflict, errorMessage);
+            return new TusBaseResult(HttpStatusCode.Conflict, errorMessage);
         }
 
         protected ITusActionResult BadRequest(string errorMessage)
         {
-            return new TusStatusCodeResult(HttpStatusCode.BadRequest, errorMessage);
+            return new TusBaseResult(HttpStatusCode.BadRequest, errorMessage);
         }
 
         protected ITusActionResult RequestEntityTooLarge(string errorMessage)
         {
-            return new TusStatusCodeResult(HttpStatusCode.RequestEntityTooLarge, errorMessage);
+            return new TusBaseResult(HttpStatusCode.RequestEntityTooLarge, errorMessage);
         }
 
         protected ITusActionResult Forbidden(string errorMessage)
         {
-            return new TusStatusCodeResult(HttpStatusCode.Forbidden, errorMessage);
+            return new TusBaseResult(HttpStatusCode.Forbidden, errorMessage);
         }
 
         protected ITusActionResult NotFound()
         {
-            return new TusStatusCodeResult(HttpStatusCode.NotFound, null);
+            return new TusBaseResult(HttpStatusCode.NotFound, null);
         }
 
         protected ITusActionResult UnsupportedMediaType(string errorMessage)
         {
-            return new TusStatusCodeResult(HttpStatusCode.UnsupportedMediaType, errorMessage);
+            return new TusBaseResult(HttpStatusCode.UnsupportedMediaType, errorMessage);
         }
 
         protected Task<ITusActionResult> OkTask()

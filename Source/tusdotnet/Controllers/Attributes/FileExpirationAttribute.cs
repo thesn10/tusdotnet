@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using tusdotnet.Models.Expiration;
 
 namespace tusdotnet.Controllers

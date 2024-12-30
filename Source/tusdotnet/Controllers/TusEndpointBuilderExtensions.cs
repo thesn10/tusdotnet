@@ -6,6 +6,7 @@ using System;
 using System.Linq;
 using tusdotnet.Constants;
 using tusdotnet.Controllers;
+using tusdotnet.Controllers.Factory;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
 using tusdotnet.Routing;
 using tusdotnet.Storage;
@@ -34,7 +35,8 @@ namespace tusdotnet
             var options = new TusEndpointOptions();
             config?.Invoke(options);
 
-            var handler = new TusProtocolHandlerEndpointBased<TController>(options);
+            var handler = new TusProtocolHandlerEndpointBasedDI(options);
+
             return endpoints.Map(routePattern, handler.Invoke).WithMetadata(new EndpointNameMetadata(pattern));
         }
 
@@ -74,7 +76,11 @@ namespace tusdotnet
             var options = new TusSimpleEndpointOptions();
             config?.Invoke(options);
 
-            var handler = new TusProtocolHandlerEndpointBased<EventsBasedTusController, TusSimpleEndpointOptions>(options, options);
+            var handler = new TusProtocolHandlerEndpointBased(options)
+            {
+                ControllerFactory = new EventsControllerFactory(options)
+            };
+
             return endpoints.Map(routePattern, handler.Invoke).WithMetadata(new EndpointNameMetadata(pattern));
         }
 

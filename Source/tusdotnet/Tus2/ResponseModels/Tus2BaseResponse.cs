@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System.Net;
 using System.Threading.Tasks;
+using tusdotnet.Controllers;
+using tusdotnet.Routing;
 
 namespace tusdotnet.Tus2
 {
-    public abstract class Tus2BaseResponse
+    public class Tus2BaseResponse : ITusActionResult
     {
         public HttpStatusCode Status { get; set; }
 
@@ -12,48 +14,30 @@ namespace tusdotnet.Tus2
 
         public bool DisconnectClient { get; set; }
 
-        public long? UploadOffset { get; set; }
-
-        public bool IsError
-        {
-            get
-            {
-                var statusCode = (int)Status;
-                return statusCode > 299; // TODO no support for redirects
-            }
-        }
+        public bool IsSuccessResult => (int)Status >= 200 && (int)Status <= 299;
 
         protected bool NoCache { get; set; }
 
-        internal async Task WriteTo(HttpContext httpContext)
+        public virtual async Task Execute(TusContext tusContext)
         {
             if (DisconnectClient)
             {
-                httpContext.Abort();
+                tusContext.HttpContext.Abort();
                 return;
             }
 
             if (NoCache)
             {
-                httpContext.SetHeader("Cache-Control", "no-cache");
+                tusContext.HttpContext.SetHeader("Cache-Control", "no-cache");
             }
 
-            if (UploadOffset != null)
+            if (!IsSuccessResult)
             {
-                httpContext.SetHeader("Upload-Offset", UploadOffset.ToString());
-            }
-
-            if (IsError)
-            {
-                await httpContext.Error(Status, ErrorMessage);
+                await tusContext.HttpContext.Error(Status, ErrorMessage);
                 return;
             }
 
-            httpContext.Response.StatusCode = (int)Status;
-
-            await WriteResponse(httpContext);
+            tusContext.HttpContext.Response.StatusCode = (int)Status;
         }
-
-        protected abstract Task WriteResponse(HttpContext context);
     }
 }

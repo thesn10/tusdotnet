@@ -40,7 +40,7 @@ namespace tusdotnet.RequestHandlers
     {
         private Dictionary<string, Metadata> _metadataFromRequirement;
 
-        internal override RequestRequirement[] Requires => BuildListOfRequirements();
+        public override RequestRequirement[] Requires => BuildListOfRequirements();
         public UploadConcat UploadConcat => _uploadConcat;
 
         private readonly UploadConcat _uploadConcat;
@@ -54,7 +54,7 @@ namespace tusdotnet.RequestHandlers
             _isPartialFile = _uploadConcat.Type is FileConcatPartial;
         }
 
-        internal override async Task<ITusActionResult> Invoke()
+        public override async Task<ITusActionResult> Invoke()
         {
             var metadata = HttpContext.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
 
@@ -83,7 +83,7 @@ namespace tusdotnet.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                return new TusBaseResult(ex.StatusCode, ex.Message);
             }
 
             if (createResult is not TusCreateStatusResult createOk)
@@ -136,7 +136,7 @@ namespace tusdotnet.RequestHandlers
                         createOk.FileExpires = writeOk.FileExpires;
                         createOk.UploadOffset = writeOk.UploadOffset;
                     }
-                    else if (writeResult is TusStatusCodeResult statusCodeResult && statusCodeResult.Exception is TusIncompleteWriteException incompleteWriteEx)
+                    else if (writeResult is TusBaseResult statusCodeResult && statusCodeResult.Exception is TusIncompleteWriteException incompleteWriteEx)
                     {
                         createOk.UploadOffset = incompleteWriteEx.UploadOffset;
                     }
@@ -155,7 +155,7 @@ namespace tusdotnet.RequestHandlers
                 }
                 catch (TusException ex)
                 {
-                    return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                    return new TusBaseResult(ex.StatusCode, ex.Message);
                 }
 
                 if (!completedResult.IsSuccessResult)

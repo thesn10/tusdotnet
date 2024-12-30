@@ -39,7 +39,7 @@ namespace tusdotnet.RequestHandlers
     {
         private Dictionary<string, Metadata> _metadataFromRequirement;
 
-        internal override RequestRequirement[] Requires => new RequestRequirement[]
+        public override RequestRequirement[] Requires => new RequestRequirement[]
         {
             new UploadLengthForCreateFileAndConcatenateFiles(EndpointOptions.MaxAllowedUploadSizeInBytes),
             new UploadMetadata(metadata => _metadataFromRequirement = metadata, EndpointOptions.MetadataParsingStrategy)
@@ -51,7 +51,7 @@ namespace tusdotnet.RequestHandlers
 
         }
 
-        internal override async Task<ITusActionResult> Invoke()
+        public override async Task<ITusActionResult> Invoke()
         {
             var metadata = HttpContext.Request.Headers[HeaderConstants.UploadMetadata].FirstOrDefault();
 
@@ -80,7 +80,7 @@ namespace tusdotnet.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                return new TusBaseResult(ex.StatusCode, ex.Message);
             }
 
             if (createResult is not TusCreateStatusResult createOk)
@@ -98,7 +98,7 @@ namespace tusdotnet.RequestHandlers
                 }
                 catch (TusException ex)
                 {
-                    return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                    return new TusBaseResult(ex.StatusCode, ex.Message);
                 }
 
                 if (!completedResult.IsSuccessResult)
@@ -143,7 +143,7 @@ namespace tusdotnet.RequestHandlers
                     createOk.FileExpires = writeOk.FileExpires;
                     createOk.UploadOffset = writeOk.UploadOffset;
                 }
-                else if (writeResult is TusStatusCodeResult statusCodeResult && statusCodeResult.Exception is TusIncompleteWriteException incompleteWriteEx)
+                else if (writeResult is TusBaseResult statusCodeResult && statusCodeResult.Exception is TusIncompleteWriteException incompleteWriteEx)
                 {
                     createOk.UploadOffset = incompleteWriteEx.UploadOffset;
                 }

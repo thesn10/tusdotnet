@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using tusdotnet.Storage.Tus2;
 
 namespace tusdotnet.Tus2
 {

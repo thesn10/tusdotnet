@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using tusdotnet.Routing;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -6,9 +6,9 @@ namespace tusdotnet.Tus2
 {
     public class UploadCancellationProcedureResponse : Tus2BaseResponse
     {
-        protected override Task WriteResponse(HttpContext context)
+        public override Task Execute(TusContext context)
         {
-            context.Response.StatusCode = (int)HttpStatusCode.NoContent;
+            context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NoContent;
             return Task.CompletedTask;
         }
     }

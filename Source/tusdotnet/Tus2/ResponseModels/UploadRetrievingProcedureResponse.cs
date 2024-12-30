@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using tusdotnet.Routing;
 using System.Net;
 using System.Threading.Tasks;
+using tusdotnet.Storage.Results.Tus2;
 
 namespace tusdotnet.Tus2
 {
@@ -13,9 +14,17 @@ namespace tusdotnet.Tus2
             NoCache = true;
             Status = HttpStatusCode.NoContent;
         }
-        protected override Task WriteResponse(HttpContext context)
+
+        public UploadRetrievingProcedureResponse(RetrieveOffsetResult retrieveOffsetResult)
+            : this()
         {
-            context.SetHeader("Upload-Incomplete", UploadIncomplete.ToSfBool());
+            UploadIncomplete = retrieveOffsetResult.UploadIncomplete;
+            UploadOffset = retrieveOffsetResult.UploadOffset;
+        }
+
+        public override Task Execute(TusContext context)
+        {
+            context.HttpContext.SetHeader("Upload-Incomplete", UploadIncomplete.ToSfBool());
 
             return Task.CompletedTask;
         }

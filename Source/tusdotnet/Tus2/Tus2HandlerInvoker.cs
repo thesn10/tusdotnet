@@ -2,6 +2,7 @@
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using tusdotnet.Controllers.Contexts.Tus2;
 using tusdotnet.Models;
 
 namespace tusdotnet.Tus2
@@ -156,7 +157,6 @@ namespace tusdotnet.Tus2
 
                 var metadata = metadataParser?.Parse(context.HttpContext);
 
-                var storageFacade = await handler.GetStorageFacade();
 
                 context.Headers.UploadOffset ??= 0;
 

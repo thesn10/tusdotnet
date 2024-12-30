@@ -113,5 +113,13 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Controllers\Contexts\Tus2\CreateFileContext.cs" />
+    <Compile Include="Controllers\Contexts\Tus2\DeleteContext.cs" />
+    <Compile Include="Controllers\Contexts\Tus2\FileCompleteContext.cs" />
+    <Compile Include="Controllers\Contexts\Tus2\RetrieveOffsetContext.cs" />
+    <Compile Include="Controllers\Contexts\Tus2\Tus2Context.cs" />
+    <Compile Include="Controllers\Contexts\Tus2\WriteDataContext.cs" />
+  </ItemGroup>
 
 </Project>

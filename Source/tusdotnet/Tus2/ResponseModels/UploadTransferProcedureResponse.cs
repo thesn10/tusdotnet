@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
-using System.Net;
+using tusdotnet.Routing;
 using System.Threading.Tasks;
+using tusdotnet.Storage.Results.Tus2;
 
 namespace tusdotnet.Tus2
 {
@@ -8,11 +9,19 @@ namespace tusdotnet.Tus2
     {
         public bool UploadIncomplete { get; set; }
 
-        protected override Task WriteResponse(HttpContext context)
+        public UploadTransferProcedureResponse(WriteResult writeResult)
+        {
+            UploadIncomplete = writeResult.UploadIncomplete;
+            UploadOffset = writeResult.UploadOffset;
+            //TODO remove because should be handled through OperationCancelledException
+            DisconnectClient = writeResult.DisconnectClient;
+        }
+
+        protected override Task Execute(TusContext context)
         {
             if (UploadIncomplete)
             {
-                context.SetHeader("Upload-Incomplete", UploadIncomplete.ToSfBool());
+                context.HttpContext.SetHeader("Upload-Incomplete", UploadIncomplete.ToSfBool());
             }
 
             return Task.CompletedTask;

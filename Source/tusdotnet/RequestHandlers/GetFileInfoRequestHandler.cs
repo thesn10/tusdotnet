@@ -31,15 +31,15 @@ namespace tusdotnet.RequestHandlers
     {
         private readonly string _fileId;
 
-        internal override RequestRequirement[] Requires => new RequestRequirement[] { };
+        public override RequestRequirement[] Requires => new RequestRequirement[] { };
 
-        internal GetFileInfoRequestHandler(TusContext context, TusControllerBase controller, string fileId)
+        internal GetFileInfoRequestHandler(TusContext context, TusControllerBase controller)
             : base(context, controller)
         {
-            _fileId = fileId;
+            _fileId = context.RoutingHelper.GetFileId();
         }
 
-        internal override async Task<ITusActionResult> Invoke()
+        public override async Task<ITusActionResult> Invoke()
         {
             var getInfoContext = new GetFileInfoContext()
             {
@@ -52,7 +52,7 @@ namespace tusdotnet.RequestHandlers
             }
             catch (TusException ex)
             {
-                return new TusStatusCodeResult(ex.StatusCode, ex.Message);
+                return new TusBaseResult(ex.StatusCode, ex.Message);
             }
         }
     }

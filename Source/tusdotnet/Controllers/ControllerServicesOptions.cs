@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Linq;
 using System.Reflection;
 using tusdotnet.Controllers;
+using tusdotnet.ExternalMiddleware.EndpointRouting;
 
 namespace tusdotnet
 {
@@ -46,8 +48,11 @@ namespace tusdotnet
         /// <summary>
         /// Adds the neccessary services to use <see cref="TusEndpointBuilderExtensions.MapTus"/>
         /// </summary>
-        public void AddEndpointServices()
+        public void AddEndpointServices(string pattern, Action<TusSimpleEndpointOptions> config = null)
         {
+
+            _services.ConfigureOptions<TusSimpleEndpointOptions>().Configure<TusSimpleEndpointOptions>(pattern, config);
+
             _services.AddTransient<EventsBasedTusController>();
         }
     }

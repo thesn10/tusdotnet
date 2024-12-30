@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using tusdotnet.Controllers.Contexts.Tus2;
 using tusdotnet.Tus2;
 
 namespace AspNetCore_netcoreapp3._1_TestApp

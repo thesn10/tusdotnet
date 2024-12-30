@@ -1,15 +1,17 @@
 ﻿#nullable enable
 using System.Threading.Tasks;
+using tusdotnet.Controllers.Contexts.Tus2;
+using tusdotnet.Storage.Tus2;
 
 namespace tusdotnet.Tus2
 {
     public class TusHandler
     {
-        private Tus2StorageFacade _storageFacade;
+        private Tus2StorageClient _storageFacade;
         private readonly ITus2ConfigurationManager _configurationManager;
         private readonly string? _storageConfigurationName;
 
-        public TusHandler(Tus2StorageFacade storageFacade)
+        public TusHandler(Tus2StorageClient storageFacade)
         {
             _storageFacade = storageFacade;
         }
@@ -47,7 +49,14 @@ namespace tusdotnet.Tus2
         {
             var storage = await GetStorageFacade();
 
-            return await storage.Delete(context);
+            storage.Delete(context.Headers.UploadToken);
+
+            return new UploadCancellationProcedureResponse()
+            {
+                DisconnectClient = false,
+                UploadOffset = 0,
+                ErrorMessage = "",
+            };
         }
 
         public virtual Task FileComplete(FileCompleteContext context)
@@ -55,12 +64,12 @@ namespace tusdotnet.Tus2
             return Task.CompletedTask;
         }
 
-        internal async Task<Tus2StorageFacade> GetStorageFacade()
+        internal async Task<Tus2StorageClient> GetStorageFacade()
         {
             return _storageFacade ?? await CreateStorage();
         }
 
-        private async Task<Tus2StorageFacade> CreateStorage()
+        private async Task<Tus2StorageClient> CreateStorage()
         {
             var storage = !string.IsNullOrEmpty(_storageConfigurationName)
                 ? (await _configurationManager.GetNamedStorage(_storageConfigurationName))

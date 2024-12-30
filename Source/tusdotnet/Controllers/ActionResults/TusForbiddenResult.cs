@@ -15,7 +15,7 @@ namespace tusdotnet.Controllers
         /// <inheritdoc />
         public Task Execute(TusContext context)
         {
-            return new TusStatusCodeResult(HttpStatusCode.Forbidden).Execute(context);
+            return new TusBaseResult(HttpStatusCode.Forbidden).Execute(context);
         }
     }
 }

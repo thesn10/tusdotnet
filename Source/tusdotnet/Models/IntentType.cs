@@ -38,6 +38,26 @@
         /// <summary>
         /// Intent is to get server options, e.g. what extensions are supported.
         /// </summary>
-        GetOptions
+        GetOptions,
+
+        /// <summary>
+        /// Intent is to create an upload.
+        /// </summary>
+        V2UploadCreationProcedure,
+
+        /// <summary>
+        /// Intent is to get the upload offset
+        /// </summary>
+        V2OffsetRetrievingProcedure,
+
+        /// <summary>
+        /// Intent is to append data to an upload.
+        /// </summary>
+        V2UploadAppendingProcedure,
+
+        /// <summary>
+        /// Intent is to cancel/delete an upload.
+        /// </summary>
+        V2UploadCancellationProcedure,
     }
 }
