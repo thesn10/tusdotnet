@@ -11,7 +11,6 @@ using tusdotnet.Routing;
 using tusdotnet.Storage.Results.Tus2;
 using tusdotnet.Storage.Tus2;
 using tusdotnet.Tus2;
-//using tusdotnet.Tus2;
 
 namespace tusdotnet.Controllers
 {
@@ -83,44 +82,53 @@ namespace tusdotnet.Controllers
         }
 
 
-        public virtual async Task<UploadRetrievingProcedureResponse> RetrieveOffset(RetrieveOffsetContext context)
+        public virtual async Task<ITus2RetrieveOffsetResult> RetrieveOffset(RetrieveOffsetContext context)
         {
             EnsureStorageClientNotNull(nameof(RetrieveOffset));
 
-            var result = await StorageClient.RetrieveOffset(context.Headers.UploadToken);
+            var uploadToken = "";// TODO context.Headers.UploadToken
 
-            return new UploadRetrievingProcedureResponse(result);
+            var result = await StorageClient.RetrieveOffset(uploadToken);
+
+            return RetrieveOffsetResult(result);
         }
 
-        public virtual async Task<UploadCreationProcedureResponse> CreateFile(CreateFileContext context)
+        public virtual async Task<ITus2CreateResult> CreateFile(CreateFileContext context)
         {
             EnsureStorageClientNotNull(nameof(CreateFile));
+            
+            var uploadToken = "";// TODO context.Headers.UploadToken
 
-            await StorageClient.CreateFile(context.Headers.UploadToken, context.Metadata);
+            await StorageClient.CreateFile(uploadToken, context.Metadata);
 
-            return new UploadCreationProcedureResponse();
+            return new Tus2CreateResult(0, 0, "");
         }
 
-        public virtual async Task<UploadAppendingProcedureResponse> WriteData(WriteDataContext context)
+        public virtual async Task<ITus2WriteResult> WriteData(WriteDataContext context)
         {
             EnsureStorageClientNotNull(nameof(WriteData));
+            
+            var uploadToken = "";// TODO context.Headers.UploadToken
+            bool? uploadIncomplete = false;// TODO context.Headers.UploadIncomplete
 
             var result = await StorageClient.WriteData(
-                context.Headers.UploadToken, 
+                uploadToken, 
                 context.BodyReader, 
-                context.Headers.UploadIncomplete ?? false, // TODO
+                uploadIncomplete ?? false, // TODO
                 context.CancellationToken);
 
-            return new UploadAppendingProcedureResponse(result);
+            return new Tus2TransferResult(0, false, false);
         }
 
-        public virtual async Task<UploadCancellationProcedureResponse> Delete(Contexts.Tus2.DeleteContext context)
+        public virtual async Task<Tus2NoContentResult> Delete(Contexts.Tus2.DeleteContext context)
         {
             EnsureStorageClientNotNull(nameof(Delete));
+            
+            var uploadToken = "";// TODO context.Headers.UploadToken
 
-            await StorageClient.Delete(context.Headers.UploadToken);
+            await StorageClient.Delete(uploadToken);
 
-            return new UploadCancellationProcedureResponse();
+            return new Tus2NoContentResult();
         }
 
         protected Tus2RetrieveOffsetResult RetrieveOffsetResult(long uploadOffset, bool uploadIncomplete) => 

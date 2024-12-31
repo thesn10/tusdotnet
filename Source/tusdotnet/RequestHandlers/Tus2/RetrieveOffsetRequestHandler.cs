@@ -85,27 +85,25 @@ File metadata can affect how servers might act on the uploaded file. Clients can
 
         public override async Task<ITusActionResult> Invoke()
         {
-            var headerParser = HttpContext.RequestServices.GetRequiredService<IHeaderParser>();
+            //var headerParser = HttpContext.RequestServices.GetRequiredService<IHeaderParser>();
             var uploadManager = HttpContext.RequestServices.GetRequiredService<IOngoingUploadManager>();
 
-            var headers = headerParser.Parse(HttpContext);
+            //var headers = headerParser.Parse(HttpContext);
 
-            Tus2Validator.AssertNoInvalidHeaders(headers);
+            //Tus2Validator.AssertNoInvalidHeaders(headers);
 
-            await uploadManager.CancelOtherUploads(headers.UploadToken);
+            //await uploadManager.CancelOtherUploads(headers.UploadToken);
 
             //await Tus2Validator.AssertFileExist(storageFacade.Storage, context.Headers.UploadToken);
 
-            UploadRetrievingProcedureResponse response;
+            ITus2RetrieveOffsetResult response;
             try
             {
-                response = await _controller.RetrieveOffset(new() { Headers = headers });
+                response = await _controller.RetrieveOffset(new() { Headers = null /*headers*/ });
             }
             catch (TusException ex)
             {
-                response = new UploadRetrievingProcedureResponse();
-                response.Status = ex.StatusCode;
-                response.ErrorMessage = ex.Message;
+                return new Tus2BaseResult(ex.StatusCode, ex.Message);
             }
 
             return response;

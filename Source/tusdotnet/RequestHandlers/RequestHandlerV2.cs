@@ -33,7 +33,7 @@ namespace tusdotnet.RequestHandlers
             switch (intentType)
             {
                 case IntentType.V2UploadCreationProcedure:
-                    //return new GetFileInfoRequestHandler(context, controller);
+                    return new UploadCreationRequestHandler(context, controller);
                 case IntentType.V2OffsetRetrievingProcedure:
                     return new RetrieveOffsetRequestHandler(context, controller);
                 case IntentType.V2UploadAppendingProcedure:

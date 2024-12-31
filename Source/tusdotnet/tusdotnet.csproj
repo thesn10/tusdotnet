@@ -5,7 +5,7 @@
     <Copyright>Copyright Stefan Matsson 2016</Copyright>
     <AssemblyTitle>tusdotnet</AssemblyTitle>
     <Authors>Stefan Matsson</Authors>
-    <TargetFrameworks>net452;netstandard1.3;netstandard2.0;netcoreapp3.1;net6.0</TargetFrameworks>
+    <TargetFrameworks>net6.0,net8.0</TargetFrameworks>
     <AssemblyName>tusdotnet</AssemblyName>
     <PackageId>tusdotnet</PackageId>
     <PackageTags>Tus;Tus-Resumable;ResumableFileUploads;FileUpload</PackageTags>
@@ -47,79 +47,28 @@
     </None>
   </ItemGroup>
 
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net452' ">
-    <DefineConstants>$(DefineConstants);netfull</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard1.3' ">
-    <DefineConstants>$(DefineConstants);netstandard</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <DefineConstants>$(DefineConstants);netstandard</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.1' ">
+  <PropertyGroup>
     <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines;endpointrouting</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
-    <DefineConstants>$(DefineConstants);netstandard;trailingheaders;pipelines;endpointrouting</DefineConstants>
-  </PropertyGroup>
+  <ItemGroup>
+    <!-- Reference only -->
+    <Compile Remove="Tus2Ref\**" />
+    <None Include="Tus2Ref\**" />
+    
+    <!-- Outdated, Reference only -->
+    <Compile Remove="IntentHandlers\**" />
+    <None Include="IntentHandlers\**" />
+    <Compile Remove="Adapters\**" />
+    <None Include="Adapters\**" />
 
-  <ItemGroup Condition="!$(DefineConstants.Contains(endpointrouting))">
-    <Compile Remove="ExternalMiddleware\EndpointRouting\**" />
-    <None Include="ExternalMiddleware\EndpointRouting\**" />
-	<Compile Remove="Controllers\**" />
-	<None Include="Controllers\**" />
-	<Compile Remove="RequestHandlers\**" />
-	<None Include="RequestHandlers\**" />
-  </ItemGroup>
-
-  <!-- Package references for .NET Framework -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="1.1.1" />
-    <PackageReference Include="Microsoft.Owin" Version="3.0.1" />
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
-  <!-- Package references for .NET Standard -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.3' ">
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="1.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Http" Version="1.1.1" />
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.0" />
-    <PackageReference Include="System.Reflection.TypeExtensions" Version="4.3.0" />
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-  </ItemGroup>
-
-  <!-- Package references for .NET Standard 2.0 -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.1.1" />
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.1.22" />
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.1" />
-    <PackageReference Include="System.Reflection.TypeExtensions" Version="4.7.0" />
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-  </ItemGroup>
-
-  <!-- Package references for .NET Core 3.1+ -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.1' ">
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Outdated, Reference only -->
+    <Compile Remove="Validation\**" />
+    <None Include="Validation\**" />
   </ItemGroup>
   
-  <!-- Package references for .NET 6-->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net6.0' ">
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
   <ItemGroup>
-    <Compile Include="Controllers\Contexts\Tus2\CreateFileContext.cs" />
-    <Compile Include="Controllers\Contexts\Tus2\DeleteContext.cs" />
-    <Compile Include="Controllers\Contexts\Tus2\FileCompleteContext.cs" />
-    <Compile Include="Controllers\Contexts\Tus2\RetrieveOffsetContext.cs" />
-    <Compile Include="Controllers\Contexts\Tus2\Tus2Context.cs" />
-    <Compile Include="Controllers\Contexts\Tus2\WriteDataContext.cs" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

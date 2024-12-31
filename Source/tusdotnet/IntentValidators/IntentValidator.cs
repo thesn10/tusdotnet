@@ -8,6 +8,6 @@ namespace tusdotnet.IntentValidators
 {
     public class IntentValidator
     {
-        public Validation.Validator 
+        //public Validation.Validator 
     }
 }

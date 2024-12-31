@@ -2,8 +2,10 @@
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using tusdotnet.Storage.Tus2;
+using tusdotnet.Tus2;
 
-namespace tusdotnet.Tus2
+namespace tusdotnet.RequestHandlers.Tus2
 {
     internal static class Tus2Validator
     {
@@ -20,10 +22,10 @@ namespace tusdotnet.Tus2
 
         internal static void AssertNoInvalidHeaders(Tus2Headers headers)
         {
-            if (headers.UploadIncomplete.HasValue)
+            /*if (headers.UploadIncomplete.HasValue)
             {
                 throw new Tus2AssertRequestException(HttpStatusCode.BadRequest, "Upload-Incomplete header is not allowed for procedure");
-            }
+            }*/
 
             if (headers.UploadOffset.HasValue)
             {

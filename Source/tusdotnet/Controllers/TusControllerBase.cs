@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
@@ -70,7 +71,7 @@ namespace tusdotnet.Controllers
         /// <see cref="TusProtocolHandlerEndpointBased{TController}"/> activates this property while activating controllers.
         /// If user code directly instantiates a controller, the getter returns an empty TusStorageClient
         /// </remarks>
-        public TusStorageClient StorageClient { get; internal set; }
+        public TusStorageClient? StorageClient { get; internal set; }
 
         /// <summary>
         /// Gets the <see cref="ITusStorageClientProvider"/> for the executing action.
@@ -79,7 +80,7 @@ namespace tusdotnet.Controllers
         /// <see cref="TusProtocolHandlerEndpointBased{TController}"/> activates this property while activating controllers.
         /// If user code directly instantiates a controller, the getter returns an empty ITusStorageClientProvider
         /// </remarks>
-        public ITusStorageClientProvider StorageClientProvider { get; internal set; }
+        public ITusStorageClientProvider? StorageClientProvider { get; internal set; }
 
         /// <summary>
         /// Called on a create request
@@ -195,9 +196,10 @@ namespace tusdotnet.Controllers
         }
 
 
+        [MemberNotNull(nameof(StorageClient))]
         private void EnsureStorageClientNotNull(string methodName)
         {
-            if (StorageClient == null)
+            if (StorageClient is null)
                 throw new TusConfigurationException(
                     $"No storage client is configured for {GetType().FullName}. Implement virtual controller method \"{methodName}\" yourself or configure a storage client.");
         }

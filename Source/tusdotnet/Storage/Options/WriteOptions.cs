@@ -19,7 +19,7 @@ namespace tusdotnet.Storage
         /// Sliding expiration will be saved per file when the file is created and updated on each time the file is updated.
         /// Setting this property to null will disable file expiration.
         /// </summary>
-        public ExpirationBase Expiration { get; set; } = null;
+        public ExpirationBase? Expiration { get; set; } = null;
 
         /// <summary>
         /// Lock provider to use when locking to prevent files from being accessed while the file is still in use.

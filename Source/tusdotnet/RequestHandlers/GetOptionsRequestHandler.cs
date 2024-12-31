@@ -17,7 +17,7 @@ namespace tusdotnet.RequestHandlers
 
     internal class GetOptionsRequestHandler : RequestHandler
     {
-        internal override RequestRequirement[] Requires => new RequestRequirement[] { };
+        public override RequestRequirement[] Requires => new RequestRequirement[] { };
 
         internal GetOptionsRequestHandler(TusContext context, TusControllerBase controller)
             : base(context, controller)
@@ -25,7 +25,7 @@ namespace tusdotnet.RequestHandlers
 
         }
 
-        internal override async Task<ITusActionResult> Invoke()
+        public override async Task<ITusActionResult> Invoke()
         {
             HttpContext.Response.Headers.Add(HeaderConstants.TusVersion, HeaderConstants.TusResumableValue);
 

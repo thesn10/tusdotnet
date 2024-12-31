@@ -8,7 +8,7 @@ namespace tusdotnet.Stores
     {
         private readonly string _fileId;
 
-        private InternalFileId(string fileId)
+        public InternalFileId(string fileId)
         {
             _fileId = fileId;
         }

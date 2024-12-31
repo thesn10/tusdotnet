@@ -12,7 +12,7 @@ namespace tusdotnet.Controllers
     /// <summary>
     /// An <see cref="ITusActionResult"/> that when executed will produce a response with the specified http status code.
     /// </summary>
-    public class Tus2BaseResult : ITusActionResult, ITus2RetrieveOffsetResult
+    public class Tus2BaseResult :  ITus2RetrieveOffsetResult, ITus2CreateResult, ITus2DeleteResult, ITus2WriteResult
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="TusBaseResult"/> class.
@@ -39,6 +39,7 @@ namespace tusdotnet.Controllers
         public bool DisconnectClient { get; set; }
 
         public long? UploadOffset { get; set; }
+        public long? UploadComplete { get; set; }
         public bool? UploadIncomplete { get; set; }
 
         public bool NoCache { get; set; }
@@ -91,6 +92,11 @@ namespace tusdotnet.Controllers
             if (UploadIncomplete != null)
             {
                 context.HttpContext.SetHeader("Upload-Incomplete", UploadIncomplete.Value.ToSfBool());
+            }
+            
+            if (UploadComplete != null)
+            {
+                context.HttpContext.SetHeader("Upload-Complete", UploadComplete.ToString());
             }
 
             return TaskHelper.Completed;

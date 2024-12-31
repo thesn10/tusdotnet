@@ -2,11 +2,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using tusdotnet.Adapters;
 using tusdotnet.Interfaces;
-#if netfull
-using Microsoft.Owin;
-#endif
 
 namespace tusdotnet.Models.Configuration
 {
@@ -31,14 +27,6 @@ namespace tusdotnet.Models.Configuration
         /// </summary>
         public CancellationToken CancellationToken { get; set; }
 
-#if netfull
-
-        /// <summary>
-        /// The OWIN context for the current request
-        /// </summary>
-        public IOwinContext OwinContext { get; private set; }
-
-#endif
         /// <summary>
         /// The http context for the current request
         /// </summary>
@@ -55,30 +43,6 @@ namespace tusdotnet.Models.Configuration
                 return Task.FromResult<ITusFile>(null);
 
             return ((ITusReadableStore)Store).GetFileAsync(FileId, CancellationToken);
-        }
-
-        internal static TSelf Create(ContextAdapter context, Action<TSelf> configure = null)
-        {
-            var fileId = context.Request.FileId;
-            if (string.IsNullOrEmpty(fileId))
-            {
-                fileId = null;
-            }
-
-            var eventContext = new TSelf
-            {
-                Store = context.Configuration.Store,
-                CancellationToken = context.CancellationToken,
-                FileId = fileId,
-                HttpContext = context.HttpContext,
-#if netfull
-                OwinContext = context.OwinContext
-#endif
-            };
-
-            configure?.Invoke(eventContext);
-
-            return eventContext;
         }
 
         internal static TSelf Create(string fileId, HttpContext context, ITusStore store, CancellationToken cancellationToken, Action<TSelf> configure = null)

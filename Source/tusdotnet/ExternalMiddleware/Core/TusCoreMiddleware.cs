@@ -1,16 +1,12 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
-using System.Linq;
 using System.Threading.Tasks;
-using tusdotnet.Adapters;
+using tusdotnet.Controllers.Factory;
 using tusdotnet.Models;
 
-#if endpointrouting
 using tusdotnet.ExternalMiddleware.EndpointRouting;
-using tusdotnet.Controllers;
 using tusdotnet.Routing;
 using tusdotnet.Storage;
-#endif
 
 // ReSharper disable once CheckNamespace
 namespace tusdotnet
@@ -50,13 +46,11 @@ namespace tusdotnet
 
             var requestUri = GetRequestUri(context);
 
-            if (!TusProtocolHandlerIntentBased.RequestIsForTusEndpoint(requestUri, config))
+            if (!RequestIsForTusEndpoint(requestUri, config))
             {
                 await _next(context);
                 return;
             }
-
-#if endpointrouting
 
             config.Validate();
 
@@ -78,72 +72,27 @@ namespace tusdotnet
             var storageClientProvider = new SingleStorageClientProvider(config.Store);
             var routingHelperFactory = new TusUrlPathRoutingHelperFactory(config.UrlPath);
 
-            var controller = new EventsBasedTusController()
-            {
-                Options = options,
-            };
+            var controllerFactory = new EventsControllerFactory(options);
 
             var handler = new TusProtocolHandlerEndpointBased(options)
             {
-                Controller = controller,
                 StorageClientProvider = storageClientProvider,
                 RoutingHelperFactory = routingHelperFactory,
+                ControllerFactory = controllerFactory,
                 Next = _next,
             };
 
             await handler.Invoke(context);
-
-#else
-            var request = CreateRequestAdapter(context, config, requestUri);
-            var response = CreateResponseAdapter(context);
-
-            var handled = await TusProtocolHandlerIntentBased.Invoke(new ContextAdapter
-            {
-                Request = request,
-                Response = response,
-                Configuration = config,
-                CancellationToken = context.RequestAborted,
-                HttpContext = context
-            });
-
-            if (handled == ResultType.ContinueExecution)
-            {
-                await _next(context);
-            }
-#endif
-        }
-
-        private RequestAdapter CreateRequestAdapter(HttpContext context, DefaultTusConfiguration config, Uri requestUri)
-        {
-            return new RequestAdapter(config.UrlPath)
-            {
-                Headers =
-                    context.Request.Headers.ToDictionary(
-                        f => f.Key,
-                        f => f.Value.ToList(),
-                        StringComparer.OrdinalIgnoreCase),
-                Body = context.Request.Body,
-#if pipelines
-                BodyReader = context.Request.BodyReader,
-#endif
-                Method = context.Request.Method,
-                RequestUri = requestUri
-            };
         }
 
         private static Uri GetRequestUri(HttpContext context)
         {
             return new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}");
         }
-
-        private ResponseAdapter CreateResponseAdapter(HttpContext context)
+        
+        private static bool RequestIsForTusEndpoint(Uri requestUri, DefaultTusConfiguration configuration)
         {
-            return new ResponseAdapter
-            {
-                Body = context.Response.Body,
-                SetHeader = (key, value) => context.Response.Headers[key] = value,
-                SetStatus = status => context.Response.StatusCode = (int)status
-            };
+            return requestUri.LocalPath.StartsWith(configuration.UrlPath, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

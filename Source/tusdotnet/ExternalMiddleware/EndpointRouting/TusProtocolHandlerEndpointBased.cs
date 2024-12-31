@@ -60,14 +60,12 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
         public IControllerFactory ControllerFactory { get; set; }
 
-        public RequestDelegate Next { get; set; }
+        public RequestDelegate? Next { get; set; }
 
         internal async Task Invoke(HttpContext context)
         {
             var v1Controller = ControllerFactory.CreateController(context);
             var v2Controller = ControllerFactory.CreateV2Controller(context);
-
-            ApplyControllerAttributeOptions(v1Controller.GetType());
 
             // the routing helper handles url generation for endpoint routing (or url path routing)
             var routingHelper = RoutingHelperFactory.Get(context);
@@ -83,18 +81,16 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
             var intentType = IntentAnalyzer.DetermineIntent(tusContext);
             if (intentType == IntentType.NotApplicable)
             {
-                if (Next != null)
+                if (Next is not null)
                 {
                     // maintain middleware compatibility
                     await Next(context);
                     return;
                 }
-                else
-                {
-                    // default endpoint routing behaivior
-                    context.Response.StatusCode = 404;
-                    return;
-                }
+                
+                // default endpoint routing behaivior
+                context.Response.StatusCode = 404;
+                return;
             }
 
             var versionResult = await VerifyTusVersionIfApplicable(context, intentType);
@@ -111,6 +107,8 @@ namespace tusdotnet.ExternalMiddleware.EndpointRouting
 
             if (v1Controller is not null)
             {
+                ApplyControllerAttributeOptions(v1Controller.GetType());
+                
                 // Inject services into the controller
                 v1Controller.TusContext = tusContext;
                 v1Controller.StorageClientProvider = StorageClientProvider;

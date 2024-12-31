@@ -1,16 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System.Threading.Tasks;
-using tusdotnet.Constants;
 using tusdotnet.Controllers;
 using tusdotnet.Exceptions;
-using tusdotnet.Models;
 using tusdotnet.RequestHandlers.Validation;
 using tusdotnet.Routing;
 using tusdotnet.Tus2;
@@ -101,25 +92,21 @@ File metadata can affect how servers might act on the uploaded file. Clients can
 
                 headers.UploadOffset ??= 0;
 
-                UploadCreationProcedureResponse response;
+                ITus2CreateResult response;
                 try
                 {
                     response = await _controller.CreateFile(new() { FileId = fileId, Headers = headers });
                 }
                 catch (TusException ex)
                 {
-                    response = new UploadCreationProcedureResponse();
-                    response.Status = ex.StatusCode;
-                    response.ErrorMessage = ex.Message;
+                    return new Tus2BaseResult(ex.StatusCode, ex.Message);
                 }
                 return response;
             }
             catch (Tus2AssertRequestException exc)
             {
-                return new UploadCreationProcedureResponse()
+                return new Tus2BaseResult(exc.Status, exc.Message)
                 {
-                    Status = exc.Status,
-                    ErrorMessage = exc.ErrorMessage,
                     UploadOffset = uploadOffsetFromStorage
                 };
             }

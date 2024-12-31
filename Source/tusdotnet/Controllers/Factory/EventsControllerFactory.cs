@@ -1,9 +1,4 @@
 ﻿using Microsoft.AspNetCore.Http;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using tusdotnet.ExternalMiddleware.EndpointRouting;
 
 namespace tusdotnet.Controllers.Factory
@@ -17,12 +12,12 @@ namespace tusdotnet.Controllers.Factory
             _options = options;
         }
 
-        public TusControllerBase CreateController(HttpContext httpContext)
+        public TusControllerBase? CreateController(HttpContext httpContext)
         {
             return new EventsBasedTusController(_options);
         }
 
-        public Tus2ControllerBase CreateV2Controller(HttpContext httpContext)
+        public Tus2ControllerBase? CreateV2Controller(HttpContext httpContext)
         {
             return null;
         }

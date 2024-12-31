@@ -5,7 +5,6 @@ using System.IO;
 using System.Threading.Tasks;
 using tusdotnet.Constants;
 using tusdotnet.Helpers;
-using tusdotnet.IntentHandlers;
 using tusdotnet.Models;
 using tusdotnet.Models.Concatenation;
 using tusdotnet.Models.Configuration;
