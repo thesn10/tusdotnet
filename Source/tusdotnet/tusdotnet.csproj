@@ -5,7 +5,7 @@
     <Copyright>Copyright Stefan Matsson 2016</Copyright>
     <AssemblyTitle>tusdotnet</AssemblyTitle>
     <Authors>Stefan Matsson</Authors>
-    <TargetFrameworks>net6.0,net8.0</TargetFrameworks>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
     <AssemblyName>tusdotnet</AssemblyName>
     <PackageId>tusdotnet</PackageId>
     <PackageTags>Tus;Tus-Resumable;ResumableFileUploads;FileUpload</PackageTags>
